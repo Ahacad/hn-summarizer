@@ -1,0 +1,88 @@
+/**
+ * Environment Configuration
+ * 
+ * This module handles environment variables and bindings for the Cloudflare Worker.
+ * It provides a typed interface for accessing environment variables and ensures
+ * all required variables are present.
+ */
+
+import { logger } from '../utils/logger';
+
+// Define the shape of environment bindings
+export interface EnvBindings {
+  // Database bindings
+  HN_SUMMARIZER_DB: D1Database;
+  CONTENT_BUCKET: R2Bucket;
+  
+  // API keys
+  GOOGLE_AI_API_KEY: string;
+  TELEGRAM_BOT_TOKEN?: string;
+  DISCORD_WEBHOOK_URL?: string;
+  
+  // Configuration
+  ENVIRONMENT: 'development' | 'production';
+  LOG_LEVEL: 'debug' | 'info' | 'warn' | 'error';
+  MAX_STORIES_PER_FETCH: number;
+  SUMMARIZATION_MAX_TOKENS: number;
+}
+
+// Singleton class to access environment variables
+export class ENV {
+  private static instance: EnvBindings;
+  
+  /**
+   * Initialize the environment with the provided bindings
+   */
+  static init(env: EnvBindings): void {
+    this.instance = env;
+    this.validateEnv();
+    
+    // Set log level from environment
+    logger.setLevel(env.LOG_LEVEL || 'info');
+  }
+  
+  /**
+   * Get an environment variable
+   */
+  static get<K extends keyof EnvBindings>(key: K): EnvBindings[K] {
+    if (!this.instance) {
+      throw new Error('Environment not initialized');
+    }
+    return this.instance[key];
+  }
+  
+  /**
+   * Validate that all required environment variables are present
+   */
+  private static validateEnv(): void {
+    const requiredKeys: (keyof EnvBindings)[] = [
+      'HN_SUMMARIZER_DB',
+      'CONTENT_BUCKET',
+      'GOOGLE_AI_API_KEY'
+    ];
+    
+    for (const key of requiredKeys) {
+      if (!this.instance[key]) {
+        throw new Error(`Required environment variable ${key} is missing`);
+      }
+    }
+    
+    // Check that at least one notification channel is configured
+    if (!this.instance.TELEGRAM_BOT_TOKEN && !this.instance.DISCORD_WEBHOOK_URL) {
+      logger.warn('No notification channels configured. Notifications will not be sent.');
+    }
+    
+    // Set default values for optional environment variables
+    if (!this.instance.ENVIRONMENT) {
+      this.instance.ENVIRONMENT = 'development';
+    }
+    
+    if (!this.instance.MAX_STORIES_PER_FETCH) {
+      this.instance.MAX_STORIES_PER_FETCH = 30;
+    }
+    
+    if (!this.instance.SUMMARIZATION_MAX_TOKENS) {
+      this.instance.SUMMARIZATION_MAX_TOKENS = 300;
+    }
+  }
+}

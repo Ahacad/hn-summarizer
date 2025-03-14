@@ -1,0 +1,65 @@
+# Cloudflare Workers configuration
+name = "hn-summarizer"
+main = "src/index.ts"
+compatibility_date = "2023-08-07"
+
+# Set the Workers runtime to nodejs
+workers_dev = true
+node_compat = true
+
+# Routes
+routes = [
+  { pattern = "api.summarizer.example.com", custom_domain = true }
+]
+
+# KV Namespace bindings
+# kv_namespaces = [
+#   { binding = "CACHE", id = "xxx", preview_id = "xxx" }
+# ]
+
+# D1 Database binding
+[[ d1_databases ]]
+binding = "HN_SUMMARIZER_DB"
+database_name = "hn-summarizer"
+database_id = "xxx"  # Replace with your actual database ID
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "hn-summarizer-content"
+preview_bucket_name = "hn-summarizer-content-dev"  # For local development
+
+# Environment variables
+[vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+MAX_STORIES_PER_FETCH = "30"
+SUMMARIZATION_MAX_TOKENS = "300"
+
+# Production environment variables
+[env.production]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+MAX_STORIES_PER_FETCH = "50"
+SUMMARIZATION_MAX_TOKENS = "300"
+
+# Secrets (Don't add actual values here, use 'wrangler secret put' instead)
+# - GOOGLE_AI_API_KEY
+# - TELEGRAM_BOT_TOKEN
+# - DISCORD_WEBHOOK_URL
+
+# Cron triggers
+[triggers]
+crons = [
+  # Fetch new stories every 30 minutes
+  "*/30 * * * *",
+  
+  # Process content every 15 minutes
+  "*/15 * * * *",
+  
+  # Generate summaries every 10 minutes
+  "*/10 * * * *",
+  
+  # Send notifications every 5 minutes
+  "*/5 * * * *"
+]
