@@ -10,6 +10,7 @@ import { logger } from '../../utils/logger';
 import { ExtractedContent } from '../../types/story';
 import { Summary } from '../../types/summary';
 import { HNStoryID } from '../../types/hackernews';
+import { STORAGE } from '../../config/constants';
 
 /**
  * Repository for managing content in R2
@@ -34,7 +35,7 @@ export class ContentRepository {
   async saveContent(storyId: HNStoryID, content: ExtractedContent): Promise<string | null> {
     try {
       // Generate a content ID
-      const contentId = `content/${storyId}/${Date.now()}`;
+      const contentId = `${STORAGE.R2.CONTENT_PREFIX}${storyId}/${Date.now()}`;
       
       // Convert content to JSON
       const contentJson = JSON.stringify(content);
@@ -97,7 +98,7 @@ export class ContentRepository {
   async saveSummary(storyId: HNStoryID, summary: Summary): Promise<string | null> {
     try {
       // Generate a summary ID
-      const summaryId = `summary/${storyId}/${Date.now()}`;
+      const summaryId = `${STORAGE.R2.SUMMARY_PREFIX}${storyId}/${Date.now()}`;
       
       // Convert summary to JSON
       const summaryJson = JSON.stringify(summary);
@@ -160,7 +161,7 @@ export class ContentRepository {
     try {
       // List objects with the content prefix for this story
       const objects = await this.bucket.list({
-        prefix: `content/${storyId}/`,
+        prefix: `${STORAGE.R2.CONTENT_PREFIX}${storyId}/`,
         limit: 1,
         delimiter: '/'
       });
@@ -190,7 +191,7 @@ export class ContentRepository {
     try {
       // List objects with the summary prefix for this story
       const objects = await this.bucket.list({
-        prefix: `summary/${storyId}/`,
+        prefix: `${STORAGE.R2.SUMMARY_PREFIX}${storyId}/`,
         limit: 1,
         delimiter: '/'
       });

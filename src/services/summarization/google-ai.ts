@@ -1,34 +1,38 @@
 /**
- * Google AI Summarization Service
+ * Google AI Summarization Service (Gemini 2.0)
  * 
- * This module provides functions for summarizing content using Google's AI APIs.
- * It handles sending text to the Google Generative Language API and processing
- * the responses.
+ * This module provides functions for summarizing content using Google's Gemini AI API.
+ * It handles sending text to the Gemini 2.0 model and processing the responses.
  */
 
-import { TextServiceClient } from '@google-ai/generativelanguage';
-import { GoogleAuth } from 'google-auth-library';
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from '@google/generative-ai';
 import { logger } from '../../utils/logger';
 import { ENV } from '../../config/environment';
 import { Summary } from '../../types/summary';
 import { promptTemplates } from './prompt-templates';
 import { HNStoryID } from '../../types/hackernews';
+import { API, PROCESSING } from '../../config/constants';
 
 /**
- * Summarization service using Google AI
+ * Summarization service using Google Gemini AI
  */
 export class GoogleAISummarizer {
-  private client: TextServiceClient;
-  private model = 'models/text-bison-001';
-  private maxLength: number;
+  private genAI: GoogleGenerativeAI;
+  private model: string;
+  private maxOutputTokens: number;
   
   /**
    * Create a new Google AI summarizer
    * 
    * @param apiKey Google AI API key
-   * @param maxLength Maximum length for summaries
+   * @param maxTokens Maximum tokens for the summary
+   * @param modelName Model name to use
    */
-  constructor(apiKey?: string, maxLength = 300) {
+  constructor(
+    apiKey?: string, 
+    maxTokens = API.GOOGLE_AI.DEFAULT_MAX_TOKENS,
+    modelName = API.GOOGLE_AI.DEFAULT_MODEL
+  ) {
     // Get API key from environment if not provided
     const key = apiKey || ENV.get('GOOGLE_AI_API_KEY');
     
@@ -36,12 +40,11 @@ export class GoogleAISummarizer {
       throw new Error('Google AI API key is required');
     }
     
-    this.maxLength = maxLength;
+    this.maxOutputTokens = maxTokens;
+    this.model = modelName;
     
     // Initialize the Google AI client
-    this.client = new TextServiceClient({
-      authClient: new GoogleAuth().fromAPIKey(key),
-    });
+    this.genAI = new GoogleGenerativeAI(key);
   }
   
   /**
@@ -57,7 +60,7 @@ export class GoogleAISummarizer {
     storyId: HNStoryID, 
     title: string, 
     content: string, 
-    maxTokens = 300
+    maxTokens = 2048
   ): Promise<Summary> {
     try {
       logger.info('Generating summary', { storyId, contentLength: content.length });
@@ -68,27 +71,42 @@ export class GoogleAISummarizer {
       // Track the start time for performance monitoring
       const startTime = Date.now();
       
-      // Generate the summary using Google AI
-      const [response] = await this.client.generateText({
+      // Get the generative model
+      const generativeModel = this.genAI.getGenerativeModel({
         model: this.model,
-        prompt: {
-          text: prompt,
+        generationConfig: {
+          maxOutputTokens: maxTokens || this.maxOutputTokens,
+          temperature: API.GOOGLE_AI.DEFAULT_TEMPERATURE,  // Lower temperature for more focused summaries
+          topP: 0.95,
+          topK: 40,
         },
-        temperature: 0.2,  // Lower temperature for more focused summaries
-        maxOutputTokens: maxTokens,
-        topK: 40,
-        topP: 0.95,
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+          },
+        ],
       });
+      
+      // Generate the summary
+      const result = await generativeModel.generateContent(prompt);
+      const response = result.response;
+      const generatedText = response.text().trim();
       
       // Track the end time
       const endTime = Date.now();
-      
-      // Process the response
-      if (!response.candidates || response.candidates.length === 0) {
-        throw new Error('No summary generated');
-      }
-      
-      const generatedText = response.candidates[0].output?.trim() || '';
       
       // Parse the summary data from the generated text
       const summary = this.parseSummaryResponse(generatedText);
@@ -142,8 +160,8 @@ export class GoogleAISummarizer {
    * Truncate content to a reasonable length for the LLM
    */
   private truncateContent(content: string): string {
-    // Rough estimate: 1 token ≈ 4 characters for English text
-    const maxChars = 6000;  // Leaves room for the prompt and response
+    // For Gemini models, we can handle more content
+    const maxChars = API.GOOGLE_AI.MAX_CONTENT_CHARS;  // Generous limit for Gemini 2.0
     
     if (content.length <= maxChars) {
       return content;
@@ -219,7 +237,7 @@ export class GoogleAISummarizer {
    */
   private estimateReadingTime(content: string): number {
     // Average reading speed: 200-250 words per minute
-    const wordsPerMinute = 225;
+    const wordsPerMinute = PROCESSING.READING_TIME.WORDS_PER_MINUTE;
     const wordCount = content.split(/\s+/).length;
     const readingTime = wordCount / wordsPerMinute;
     
@@ -229,9 +247,11 @@ export class GoogleAISummarizer {
   
   /**
    * Rough estimate of token count
+   * Note: This is a very rough approximation and actual token count
+   * will vary based on the tokenizer used by the model
    */
   private estimateTokenCount(text: string): number {
     // Simple approximation: 1 token ≈ 4 characters for English text
-    return Math.ceil(text.length / 4);
+    return Math.ceil(text.length / PROCESSING.TOKEN_ESTIMATION.CHARS_PER_TOKEN);
   }
 }

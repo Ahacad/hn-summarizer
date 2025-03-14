@@ -7,6 +7,7 @@
  */
 
 import { logger } from '../utils/logger';
+import { ENV_DEFAULTS } from './constants';
 
 // Define the shape of environment bindings
 export interface EnvBindings {
@@ -74,15 +75,15 @@ export class ENV {
     
     // Set default values for optional environment variables
     if (!this.instance.ENVIRONMENT) {
-      this.instance.ENVIRONMENT = 'development';
+      this.instance.ENVIRONMENT = ENV_DEFAULTS.ENVIRONMENT;
     }
     
     if (!this.instance.MAX_STORIES_PER_FETCH) {
-      this.instance.MAX_STORIES_PER_FETCH = 30;
+      this.instance.MAX_STORIES_PER_FETCH = ENV_DEFAULTS.MAX_STORIES_PER_FETCH;
     }
     
     if (!this.instance.SUMMARIZATION_MAX_TOKENS) {
-      this.instance.SUMMARIZATION_MAX_TOKENS = 300;
+      this.instance.SUMMARIZATION_MAX_TOKENS = ENV_DEFAULTS.SUMMARIZATION_MAX_TOKENS;
     }
   }
 }

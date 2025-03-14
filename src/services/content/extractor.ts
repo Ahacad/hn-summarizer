@@ -11,6 +11,7 @@ import { JSDOM } from 'jsdom';
 import { logger } from '../../utils/logger';
 import { cleaner } from './cleaner';
 import { ExtractedContent } from '../../types/story';
+import { API } from '../../config/constants';
 
 /**
  * Content extractor service
@@ -26,8 +27,8 @@ export class ContentExtractor {
    * @param timeout Request timeout in milliseconds
    */
   constructor(
-    userAgent = 'HackerNews Summarizer Bot',
-    timeout = 10000
+    userAgent = API.CONTENT.USER_AGENT,
+    timeout = API.CONTENT.REQUEST_TIMEOUT
   ) {
     this.userAgent = userAgent;
     this.timeout = timeout;

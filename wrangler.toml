@@ -49,6 +49,7 @@ SUMMARIZATION_MAX_TOKENS = "300"
 # - DISCORD_WEBHOOK_URL
 
 # Cron triggers
+# These values should match those in src/config/constants.ts
 [triggers]
 crons = [
   # Fetch new stories every 30 minutes

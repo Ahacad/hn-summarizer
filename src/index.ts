@@ -13,6 +13,7 @@ import { summaryGeneratorHandler } from './workers/summary-generator';
 import { notificationSenderHandler } from './workers/notification-sender';
 import { logger } from './utils/logger';
 import { ENV } from './config/environment';
+import { CRON } from './config/constants';
 
 // Initialize the router
 const router = new Router();
@@ -60,16 +61,16 @@ export default {
       
       // Route based on the cron pattern
       switch (event.cron) {
-        case '*/30 * * * *': // Every 30 minutes
+        case CRON.FETCH_STORIES: // Every 30 minutes
           url.pathname = '/cron/fetch-stories';
           break;
-        case '*/15 * * * *': // Every 15 minutes
+        case CRON.PROCESS_CONTENT: // Every 15 minutes
           url.pathname = '/cron/process-content';
           break;
-        case '*/10 * * * *': // Every 10 minutes
+        case CRON.GENERATE_SUMMARIES: // Every 10 minutes
           url.pathname = '/cron/generate-summaries';
           break;
-        case '*/5 * * * *': // Every 5 minutes
+        case CRON.SEND_NOTIFICATIONS: // Every 5 minutes
           url.pathname = '/cron/send-notifications';
           break;
         default:

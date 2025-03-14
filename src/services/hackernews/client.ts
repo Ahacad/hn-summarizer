@@ -8,9 +8,7 @@
 
 import { logger } from '../../utils/logger';
 import { HNStory, HNStoryID } from '../../types/hackernews';
-
-// Base URL for the HackerNews API
-const HN_API_BASE = 'https://hacker-news.firebaseio.com/v0';
+import { API } from '../../config/constants';
 
 /**
  * HackerNews API client
@@ -24,7 +22,7 @@ export class HackerNewsClient {
    * 
    * @param cacheTimeout Cache timeout in milliseconds (default: 5 minutes)
    */
-  constructor(cacheTimeout = 5 * 60 * 1000) {
+  constructor(cacheTimeout = API.HACKERNEWS.CACHE_TIMEOUT) {
     this.cacheTimeout = cacheTimeout;
   }
   
@@ -34,7 +32,7 @@ export class HackerNewsClient {
    * @param limit Maximum number of stories to fetch
    * @returns Array of story IDs
    */
-  async getTopStories(limit = 30): Promise<HNStoryID[]> {
+  async getTopStories(limit = API.HACKERNEWS.DEFAULT_STORY_LIMIT): Promise<HNStoryID[]> {
     try {
       // Check if we have cached data that's still valid
       const now = Date.now();
@@ -44,7 +42,7 @@ export class HackerNewsClient {
       }
       
       // Fetch top stories from the API
-      const response = await fetch(`${HN_API_BASE}/topstories.json`);
+      const response = await fetch(`${API.HACKERNEWS.BASE_URL}/topstories.json`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch top stories: ${response.status} ${response.statusText}`);
@@ -76,7 +74,7 @@ export class HackerNewsClient {
    */
   async getStory(id: HNStoryID): Promise<HNStory> {
     try {
-      const response = await fetch(`${HN_API_BASE}/item/${id}.json`);
+      const response = await fetch(`${API.HACKERNEWS.BASE_URL}/item/${id}.json`);
       
       if (!response.ok) {
         throw new Error(`Failed to fetch story ${id}: ${response.status} ${response.statusText}`);
@@ -100,7 +98,7 @@ export class HackerNewsClient {
    * @param concurrency Maximum number of concurrent requests
    * @returns Array of story details
    */
-  async getStories(ids: HNStoryID[], concurrency = 5): Promise<HNStory[]> {
+  async getStories(ids: HNStoryID[], concurrency = API.HACKERNEWS.DEFAULT_CONCURRENCY): Promise<HNStory[]> {
     logger.info('Fetching details for multiple stories', { count: ids.length });
     
     const results: HNStory[] = [];

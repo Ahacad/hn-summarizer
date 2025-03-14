@@ -32,6 +32,7 @@
     "@google/generative-ai": "^0.24.0",
     "discord.js": "^14.18.0",
     "jsdom": "^26.0.0",
+    "node-fetch": "^3.3.2",
     "readability": "^0.1.0",
     "telegraf": "^4.16.3"
   }
