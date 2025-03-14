@@ -8,6 +8,8 @@
     "dev": "wrangler dev",
     "publish": "wrangler publish",
     "test": "jest",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write 'src/**/*.ts'"
   },
