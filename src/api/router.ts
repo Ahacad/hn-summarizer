@@ -1,12 +1,12 @@
 /**
  * API Router
- * 
+ *
  * This module provides a router for handling API requests.
  * It routes requests to the appropriate handlers based on the path and method.
  */
 
-import { logger } from '../utils/logger';
-import { asyncHandler } from '../utils/errors';
+import { logger } from "../utils/logger";
+import { asyncHandler } from "../utils/errors";
 
 /**
  * Route handler type
@@ -14,13 +14,19 @@ import { asyncHandler } from '../utils/errors';
 export type RouteHandler = (
   request: Request,
   env: any,
-  ctx: ExecutionContext
+  ctx: ExecutionContext,
 ) => Promise<Response>;
 
 /**
  * HTTP methods
  */
-export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH' | 'OPTIONS';
+export type HttpMethod =
+  | "GET"
+  | "POST"
+  | "PUT"
+  | "DELETE"
+  | "PATCH"
+  | "OPTIONS";
 
 /**
  * Route definition
@@ -36,10 +42,10 @@ interface Route {
  */
 export class Router {
   private routes: Route[] = [];
-  
+
   /**
    * Add a route
-   * 
+   *
    * @param method HTTP method
    * @param path Route path
    * @param handler Route handler
@@ -48,13 +54,13 @@ export class Router {
     this.routes.push({
       method,
       path,
-      handler: asyncHandler(handler)
+      handler: asyncHandler(handler),
     });
   }
-  
+
   /**
    * Handle a request
-   * 
+   *
    * @param request Request object
    * @param env Environment
    * @param ctx Execution context
@@ -63,40 +69,40 @@ export class Router {
   async handle(
     request: Request,
     env: any,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ): Promise<Response> {
     const url = new URL(request.url);
     const method = request.method as HttpMethod;
     const path = url.pathname;
-    
-    logger.debug('Handling request', { method, path });
-    
+
+    logger.debug("Handling request", { method, path });
+
     // Find a matching route
-    const route = this.routes.find(r => {
+    const route = this.routes.find((r) => {
       return r.method === method && this.pathMatches(r.path, path);
     });
-    
+
     if (route) {
       try {
         return await route.handler(request, env, ctx);
       } catch (error) {
-        logger.error('Error handling route', { error, method, path });
-        return new Response('Internal Server Error', { status: 500 });
+        logger.error("Error handling route", { error, method, path });
+        return new Response("Internal Server Error", { status: 500 });
       }
     }
-    
+
     // Handle CORS preflight requests
-    if (method === 'OPTIONS') {
+    if (method === "OPTIONS") {
       return this.handleCors(request);
     }
-    
+
     // No matching route found
-    return new Response('Not Found', { status: 404 });
+    return new Response("Not Found", { status: 404 });
   }
-  
+
   /**
    * Check if a path matches a route pattern
-   * 
+   *
    * @param routePath Route pattern
    * @param requestPath Request path
    * @returns Whether the path matches
@@ -106,20 +112,23 @@ export class Router {
     if (routePath === requestPath) {
       return true;
     }
-    
+
     // Handle simple wildcards
-    if (routePath.endsWith('/*') && requestPath.startsWith(routePath.slice(0, -2))) {
+    if (
+      routePath.endsWith("/*") &&
+      requestPath.startsWith(routePath.slice(0, -2))
+    ) {
       return true;
     }
-    
+
     // Future enhancement: Handle path parameters
-    
+
     return false;
   }
-  
+
   /**
    * Handle CORS preflight requests
-   * 
+   *
    * @param request Request object
    * @returns Response
    */
@@ -127,11 +136,11 @@ export class Router {
     return new Response(null, {
       status: 204,
       headers: {
-        'Access-Control-Allow-Origin': '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization',
-        'Access-Control-Max-Age': '86400'
-      }
+        "Access-Control-Allow-Origin": "*",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Max-Age": "86400",
+      },
     });
   }
 }

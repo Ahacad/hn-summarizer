@@ -1,6 +1,6 @@
 /**
  * LLM Prompt Templates
- * 
+ *
  * This module defines prompt templates for use with LLMs.
  * These templates provide instructions to the model for generating
  * high-quality summaries and other content.
@@ -84,5 +84,5 @@ Identify and list:
 5. Any conclusions or outcomes described
 
 Focus only on extracting factual information, not opinions or commentary.
-`.trim()
+`.trim(),
 };

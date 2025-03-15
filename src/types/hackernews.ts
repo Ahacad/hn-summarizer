@@ -1,6 +1,6 @@
 /**
  * HackerNews API Types
- * 
+ *
  * This module defines TypeScript interfaces for the HackerNews API.
  * These types match the structure of the data returned by the official API.
  */
@@ -9,7 +9,7 @@
 export type HNStoryID = number;
 
 // HackerNews item types
-export type HNItemType = 'story' | 'comment' | 'job' | 'poll' | 'pollopt';
+export type HNItemType = "story" | "comment" | "job" | "poll" | "pollopt";
 
 // Base interface for all HackerNews items
 export interface HNItem {
@@ -24,9 +24,9 @@ export interface HNItem {
 
 // Interface for stories
 export interface HNStory extends HNItem {
-  type: 'story';
+  type: "story";
   title: string;
-  url?: string;  // URL might be missing for text posts
+  url?: string; // URL might be missing for text posts
   text?: string; // Text content for posts without URLs
   score: number;
   descendants?: number; // Number of comments
@@ -34,14 +34,14 @@ export interface HNStory extends HNItem {
 
 // Interface for comments
 export interface HNComment extends HNItem {
-  type: 'comment';
+  type: "comment";
   text: string;
   parent: HNStoryID;
 }
 
 // Interface for jobs
 export interface HNJob extends HNItem {
-  type: 'job';
+  type: "job";
   text?: string;
   url?: string;
   title: string;
@@ -49,7 +49,7 @@ export interface HNJob extends HNItem {
 
 // Interface for polls
 export interface HNPoll extends HNItem {
-  type: 'poll';
+  type: "poll";
   title: string;
   text?: string;
   score: number;
@@ -59,7 +59,7 @@ export interface HNPoll extends HNItem {
 
 // Interface for poll options
 export interface HNPollOpt extends HNItem {
-  type: 'pollopt';
+  type: "pollopt";
   text: string;
   score: number;
   parent: HNStoryID;

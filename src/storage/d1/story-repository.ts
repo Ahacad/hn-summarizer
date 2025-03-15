@@ -1,45 +1,47 @@
 /**
  * Story Repository
- * 
+ *
  * This module provides a repository for managing story metadata in D1.
  * It handles CRUD operations for stories and manages the relationship
  * between stories and their content/summaries.
  */
 
-import { ENV } from '../../config/environment';
-import { logger } from '../../utils/logger';
-import { HNStory, HNStoryID } from '../../types/hackernews';
-import { ProcessedStory, ProcessingStatus } from '../../types/story';
+import { ENV } from "../../config/environment";
+import { logger } from "../../utils/logger";
+import { HNStory, HNStoryID } from "../../types/hackernews";
+import { ProcessedStory, ProcessingStatus } from "../../types/story";
 
 /**
  * Repository for managing story metadata
  */
 export class StoryRepository {
   private db: D1Database;
-  
+
   /**
    * Create a new story repository
    */
   constructor() {
-    this.db = ENV.get('HN_SUMMARIZER_DB');
+    this.db = ENV.get("HN_SUMMARIZER_DB");
   }
-  
+
   /**
    * Save a story to the database
-   * 
+   *
    * @param story Story to save
    * @returns Whether the operation was successful
    */
   async saveStory(story: ProcessedStory): Promise<boolean> {
     try {
       const now = new Date().toISOString();
-      
+
       // Check if story already exists
       const existing = await this.getStory(story.id);
-      
+
       if (existing) {
         // Update existing story
-        const result = await this.db.prepare(`
+        const result = await this.db
+          .prepare(
+            `
           UPDATE stories 
           SET 
             title = ?, 
@@ -53,113 +55,134 @@ export class StoryRepository {
             updated_at = ?,
             error = ?
           WHERE id = ?
-        `).bind(
-          story.title,
-          story.url,
-          story.by,
-          story.time,
-          story.score,
-          story.status,
-          story.contentId || null,
-          story.summaryId || null,
-          now,
-          story.error || null,
-          story.id
-        ).run();
-        
-        logger.debug('Updated story in database', { 
-          storyId: story.id, 
-          status: story.status 
+        `,
+          )
+          .bind(
+            story.title,
+            story.url,
+            story.by,
+            story.time,
+            story.score,
+            story.status,
+            story.contentId || null,
+            story.summaryId || null,
+            now,
+            story.error || null,
+            story.id,
+          )
+          .run();
+
+        logger.debug("Updated story in database", {
+          storyId: story.id,
+          status: story.status,
         });
-        
+
         return result.success;
       } else {
         // Insert new story
-        const result = await this.db.prepare(`
+        const result = await this.db
+          .prepare(
+            `
           INSERT INTO stories (
             id, title, url, by, time, score, status, 
             content_id, summary_id, processed_at, updated_at, error
           ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).bind(
-          story.id,
-          story.title,
-          story.url,
-          story.by,
-          story.time,
-          story.score,
-          story.status,
-          story.contentId || null,
-          story.summaryId || null,
-          now,
-          now,
-          story.error || null
-        ).run();
-        
-        logger.debug('Inserted new story in database', { 
-          storyId: story.id, 
-          status: story.status 
+        `,
+          )
+          .bind(
+            story.id,
+            story.title,
+            story.url,
+            story.by,
+            story.time,
+            story.score,
+            story.status,
+            story.contentId || null,
+            story.summaryId || null,
+            now,
+            now,
+            story.error || null,
+          )
+          .run();
+
+        logger.debug("Inserted new story in database", {
+          storyId: story.id,
+          status: story.status,
         });
-        
+
         return result.success;
       }
     } catch (error) {
-      logger.error('Error saving story to database', { error, storyId: story.id });
+      logger.error("Error saving story to database", {
+        error,
+        storyId: story.id,
+      });
       return false;
     }
   }
-  
+
   /**
    * Get a story from the database
-   * 
+   *
    * @param id Story ID
    * @returns Story data or null if not found
    */
   async getStory(id: HNStoryID): Promise<ProcessedStory | null> {
     try {
-      const result = await this.db.prepare(`
+      const result = await this.db
+        .prepare(
+          `
         SELECT * FROM stories WHERE id = ?
-      `).bind(id).first<StoriesRow>();
-      
+      `,
+        )
+        .bind(id)
+        .first<StoriesRow>();
+
       if (!result) {
         return null;
       }
-      
+
       return this.mapRowToStory(result);
     } catch (error) {
-      logger.error('Error getting story from database', { error, storyId: id });
+      logger.error("Error getting story from database", { error, storyId: id });
       return null;
     }
   }
-  
+
   /**
    * Get stories by status
-   * 
+   *
    * @param status Processing status to filter by
    * @param limit Maximum number of stories to return
    * @returns Array of stories
    */
   async getStoriesByStatus(
     status: ProcessingStatus,
-    limit = 10
+    limit = 10,
   ): Promise<ProcessedStory[]> {
     try {
-      const results = await this.db.prepare(`
+      const results = await this.db
+        .prepare(
+          `
         SELECT * FROM stories 
         WHERE status = ? 
         ORDER BY score DESC, time DESC
         LIMIT ?
-      `).bind(status, limit).all<StoriesRow>();
-      
-      return results.results.map(row => this.mapRowToStory(row));
+      `,
+        )
+        .bind(status, limit)
+        .all<StoriesRow>();
+
+      return results.results.map((row) => this.mapRowToStory(row));
     } catch (error) {
-      logger.error('Error getting stories by status', { error, status });
+      logger.error("Error getting stories by status", { error, status });
       return [];
     }
   }
-  
+
   /**
    * Update story status
-   * 
+   *
    * @param id Story ID
    * @param status New status
    * @param error Optional error message
@@ -168,33 +191,38 @@ export class StoryRepository {
   async updateStatus(
     id: HNStoryID,
     status: ProcessingStatus,
-    error?: string
+    error?: string,
   ): Promise<boolean> {
     try {
       const now = new Date().toISOString();
-      
-      const result = await this.db.prepare(`
+
+      const result = await this.db
+        .prepare(
+          `
         UPDATE stories 
         SET status = ?, updated_at = ?, error = ?
         WHERE id = ?
-      `).bind(status, now, error || null, id).run();
-      
-      logger.debug('Updated story status', { 
-        storyId: id, 
+      `,
+        )
+        .bind(status, now, error || null, id)
+        .run();
+
+      logger.debug("Updated story status", {
+        storyId: id,
         status,
-        success: result.success
+        success: result.success,
       });
-      
+
       return result.success;
     } catch (error) {
-      logger.error('Error updating story status', { error, storyId: id });
+      logger.error("Error updating story status", { error, storyId: id });
       return false;
     }
   }
-  
+
   /**
    * Update story content ID
-   * 
+   *
    * @param id Story ID
    * @param contentId Content ID in R2
    * @returns Whether the operation was successful
@@ -202,29 +230,34 @@ export class StoryRepository {
   async updateContentId(id: HNStoryID, contentId: string): Promise<boolean> {
     try {
       const now = new Date().toISOString();
-      
-      const result = await this.db.prepare(`
+
+      const result = await this.db
+        .prepare(
+          `
         UPDATE stories 
         SET content_id = ?, updated_at = ?
         WHERE id = ?
-      `).bind(contentId, now, id).run();
-      
-      logger.debug('Updated story content ID', { 
-        storyId: id, 
+      `,
+        )
+        .bind(contentId, now, id)
+        .run();
+
+      logger.debug("Updated story content ID", {
+        storyId: id,
         contentId,
-        success: result.success
+        success: result.success,
       });
-      
+
       return result.success;
     } catch (error) {
-      logger.error('Error updating story content ID', { error, storyId: id });
+      logger.error("Error updating story content ID", { error, storyId: id });
       return false;
     }
   }
-  
+
   /**
    * Update story summary ID
-   * 
+   *
    * @param id Story ID
    * @param summaryId Summary ID in R2
    * @returns Whether the operation was successful
@@ -232,67 +265,82 @@ export class StoryRepository {
   async updateSummaryId(id: HNStoryID, summaryId: string): Promise<boolean> {
     try {
       const now = new Date().toISOString();
-      
-      const result = await this.db.prepare(`
+
+      const result = await this.db
+        .prepare(
+          `
         UPDATE stories 
         SET summary_id = ?, updated_at = ?
         WHERE id = ?
-      `).bind(summaryId, now, id).run();
-      
-      logger.debug('Updated story summary ID', { 
-        storyId: id, 
+      `,
+        )
+        .bind(summaryId, now, id)
+        .run();
+
+      logger.debug("Updated story summary ID", {
+        storyId: id,
         summaryId,
-        success: result.success
+        success: result.success,
       });
-      
+
       return result.success;
     } catch (error) {
-      logger.error('Error updating story summary ID', { error, storyId: id });
+      logger.error("Error updating story summary ID", { error, storyId: id });
       return false;
     }
   }
-  
+
   /**
    * Check if a story exists in the database
-   * 
+   *
    * @param id Story ID
    * @returns Whether the story exists
    */
   async exists(id: HNStoryID): Promise<boolean> {
     try {
-      const result = await this.db.prepare(`
+      const result = await this.db
+        .prepare(
+          `
         SELECT 1 FROM stories WHERE id = ?
-      `).bind(id).first<{ 1: number }>();
-      
+      `,
+        )
+        .bind(id)
+        .first<{ 1: number }>();
+
       return result !== null;
     } catch (error) {
-      logger.error('Error checking if story exists', { error, storyId: id });
- o     return false;
+      logger.error("Error checking if story exists", { error, storyId: id });
+      return false;
     }
   }
-  
+
   /**
    * Get the latest processed stories
-   * 
+   *
    * @param limit Maximum number of stories to return
    * @returns Array of stories
    */
   async getLatestStories(limit = 10): Promise<ProcessedStory[]> {
     try {
-      const results = await this.db.prepare(`
+      const results = await this.db
+        .prepare(
+          `
         SELECT * FROM stories 
         WHERE status = ?
         ORDER BY processed_at DESC
         LIMIT ?
-      `).bind(ProcessingStatus.COMPLETED, limit).all<StoriesRow>();
-      
-      return results.results.map(row => this.mapRowToStory(row));
+      `,
+        )
+        .bind(ProcessingStatus.COMPLETED, limit)
+        .all<StoriesRow>();
+
+      return results.results.map((row) => this.mapRowToStory(row));
     } catch (error) {
-      logger.error('Error getting latest stories', { error });
+      logger.error("Error getting latest stories", { error });
       return [];
     }
   }
-  
+
   /**
    * Convert a database row to a ProcessedStory object
    */
@@ -309,7 +357,7 @@ export class StoryRepository {
       summaryId: row.summary_id || undefined,
       processedAt: row.processed_at,
       updatedAt: row.updated_at,
-      error: row.error || undefined
+      error: row.error || undefined,
     };
   }
 }
