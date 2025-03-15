@@ -8,9 +8,9 @@ workers_dev = true
 node_compat = true
 
 # Routes
-routes = [
-  { pattern = "api.summarizer.example.com", custom_domain = true }
-]
+# routes = [
+#   { pattern = "api.summarizer.example.com", custom_domain = true }
+# ]
 
 # KV Namespace bindings
 # kv_namespaces = [
