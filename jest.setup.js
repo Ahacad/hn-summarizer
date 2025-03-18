@@ -37,10 +37,25 @@ global.Request = class Request {
 // Mock fetch
 global.fetch = jest.fn();
 
-// Mock ExecutionContext
+// Mock ExecutionContext - Create a proper mock class instead of just declaring it
 global.ExecutionContext = class ExecutionContext {
-  waitUntil() {}
-  passThroughOnException() {}
+  constructor() {
+    // Add any properties needed for tests
+  }
+  
+  waitUntil(promise) {
+    // Mock implementation
+    return promise;
+  }
+  
+  passThroughOnException() {
+    // Mock implementation
+  }
+};
+
+// Export a helper to create a mock context for tests
+global.createMockExecutionContext = () => {
+  return new ExecutionContext();
 };
 
 // Mock Cloudflare Workers environment variables
