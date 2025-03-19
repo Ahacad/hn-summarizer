@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.4](https://github.com/Ahacad/hn-summarizer/compare/v0.2.3...v0.2.4) (2025-03-19)
+
+
+### CI
+
+* publish to github immediately after bumping version ([b3d9b00](https://github.com/Ahacad/hn-summarizer/commit/b3d9b0067f60cf31b669a1c815bd6fb6831992f1))
+
 ### [0.2.3](https://github.com/Ahacad/hn-summarizer/compare/v0.2.2...v0.2.3) (2025-03-19)
 
 
