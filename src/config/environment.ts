@@ -15,8 +15,9 @@ export interface EnvBindings {
   HN_SUMMARIZER_DB: D1Database;
   CONTENT_BUCKET: R2Bucket;
 
-  // API keys
+  // API keys and URLs
   GOOGLE_AI_API_KEY: string;
+  FIRECRAWL_API_URL: string; // Required Firecrawl API URL
   TELEGRAM_BOT_TOKEN?: string;
   DISCORD_WEBHOOK_URL?: string;
 
@@ -60,6 +61,7 @@ export class ENV {
       "HN_SUMMARIZER_DB",
       "CONTENT_BUCKET",
       "GOOGLE_AI_API_KEY",
+      "FIRECRAWL_API_URL", // Firecrawl API URL is required
     ];
 
     for (const key of requiredKeys) {

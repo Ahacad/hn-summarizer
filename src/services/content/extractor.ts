@@ -1,37 +1,43 @@
 /**
  * Web Content Extractor
  *
- * This module provides functions for extracting content from web pages.
- * It handles fetching the page, extracting the main content using Readability,
- * and cleaning up the content for summarization.
+ * This module provides functions for extracting content from web pages
+ * using a self-hosted Firecrawl API service.
  */
 
-import { Readability } from "readability";
-import { JSDOM } from "jsdom";
 import { logger } from "../../utils/logger";
-import { cleaner } from "./cleaner";
 import { ExtractedContent } from "../../types/story";
 import { API } from "../../config/constants";
+import { FirecrawlClient } from "./firecrawl-client";
+import { ENV } from "../../config/environment";
+import { cleaner } from "./cleaner";
 
 /**
- * Content extractor service
+ * Content extractor service using self-hosted Firecrawl API
  */
 export class ContentExtractor {
-  private readonly userAgent: string;
-  private readonly timeout: number;
+  private firecrawlClient: FirecrawlClient;
 
   /**
    * Create a new content extractor
    *
-   * @param userAgent User agent to use for requests
-   * @param timeout Request timeout in milliseconds
+   * @param apiUrl Firecrawl API URL (optional, will use env var if not provided)
+   * @param apiKey Firecrawl API key (optional for self-hosted API)
    */
   constructor(
-    userAgent = API.CONTENT.USER_AGENT,
-    timeout = API.CONTENT.REQUEST_TIMEOUT,
+    apiUrl?: string,
+    apiKey?: string
   ) {
-    this.userAgent = userAgent;
-    this.timeout = timeout;
+    const configuredUrl = apiUrl || ENV.get("FIRECRAWL_API_URL");
+    
+    if (!configuredUrl) {
+      throw new Error("Firecrawl API URL is required. Set FIRECRAWL_API_URL environment variable or pass it to the constructor.");
+    }
+    
+    // Initialize the Firecrawl client
+    this.firecrawlClient = new FirecrawlClient(configuredUrl, apiKey);
+    
+    logger.debug("Initialized Content Extractor with Firecrawl API", { apiUrl: configuredUrl });
   }
 
   /**
@@ -44,39 +50,31 @@ export class ContentExtractor {
     try {
       logger.debug("Extracting content", { url });
 
-      // Fetch the page
-      const html = await this.fetchPage(url);
-      if (!html) {
+      // Use Firecrawl API to extract content
+      const content = await this.firecrawlClient.extractContent(url);
+
+      if (!content) {
+        logger.warn("Failed to extract content with Firecrawl API", { url });
         return null;
       }
 
-      // Parse the HTML
-      const dom = new JSDOM(html, { url });
-
-      // Extract the content using Readability
-      const reader = new Readability(dom.window.document);
-      const article = reader.parse();
-
-      if (!article) {
-        logger.warn("Failed to extract content with Readability", { url });
-        return null;
+      // Apply additional cleaning to the extracted content
+      if (content.content) {
+        content.content = cleaner.clean(content.content);
       }
 
-      // Clean the content
-      const cleanContent = cleaner.clean(article.textContent);
+      // Generate an excerpt if none was provided
+      if (!content.excerpt && content.content) {
+        content.excerpt = cleaner.extractExcerpt(content.content, 200);
+      }
 
-      return {
+      logger.debug("Successfully extracted content", {
         url,
-        title: article.title,
-        byline: article.byline,
-        content: cleanContent,
-        excerpt: article.excerpt,
-        siteName: article.siteName,
-        rawContent: article.textContent,
-        rawHtml: html,
-        wordCount: cleanContent.split(/\s+/).length,
-        extractedAt: new Date().toISOString(),
-      };
+        title: content.title,
+        wordCount: content.wordCount,
+      });
+
+      return content;
     } catch (error) {
       logger.error("Error extracting content", { error, url });
       return null;
@@ -84,57 +82,71 @@ export class ContentExtractor {
   }
 
   /**
-   * Fetch a web page
-   *
-   * @param url URL to fetch
-   * @returns HTML content or null if fetch failed
+   * Extract structured data from a URL
+   * 
+   * @param url URL to extract data from
+   * @returns Structured data or null if extraction failed
    */
-  private async fetchPage(url: string): Promise<string | null> {
+  async extractStructuredData(url: string): Promise<any | null> {
     try {
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+      logger.debug("Extracting structured data from URL", { url });
 
-      // Fetch the page with appropriate headers
-      const response = await fetch(url, {
-        headers: {
-          "User-Agent": this.userAgent,
-          Accept: "text/html,application/xhtml+xml,application/xml",
-          "Accept-Language": "en-US,en;q=0.9",
+      // Define a schema for article extraction
+      const schema = {
+        type: "object",
+        properties: {
+          title: {
+            type: "string",
+            description: "The title of the article"
+          },
+          author: {
+            type: "string",
+            description: "The author of the article"
+          },
+          publishDate: {
+            type: "string",
+            description: "The publication date of the article"
+          },
+          content: {
+            type: "string",
+            description: "The main content of the article"
+          },
+          summary: {
+            type: "string",
+            description: "A brief summary of the article"
+          },
+          topics: {
+            type: "array",
+            items: {
+              type: "string"
+            },
+            description: "Main topics covered in the article"
+          }
         },
-        redirect: "follow",
-        signal: controller.signal,
+        required: ["title", "content"]
+      };
+
+      // Extract structured data using Firecrawl
+      const data = await this.firecrawlClient.extractStructuredData(
+        url, 
+        schema,
+        "Extract the article's title, author, publication date, main content, a brief summary, and the main topics covered."
+      );
+
+      if (!data) {
+        logger.warn("Failed to extract structured data with Firecrawl API", { url });
+        return null;
+      }
+
+      logger.debug("Successfully extracted structured data", {
+        url,
+        hasTitle: !!data.title,
+        hasContent: !!data.content
       });
 
-      // Clear the timeout
-      clearTimeout(timeoutId);
-
-      if (!response.ok) {
-        logger.warn("Failed to fetch page", {
-          url,
-          status: response.status,
-          statusText: response.statusText,
-        });
-        return null;
-      }
-
-      // Check content type
-      const contentType = response.headers.get("content-type") || "";
-      if (
-        !contentType.includes("text/html") &&
-        !contentType.includes("application/xhtml+xml")
-      ) {
-        logger.warn("Unsupported content type", { url, contentType });
-        return null;
-      }
-
-      return await response.text();
+      return data;
     } catch (error) {
-      if (error.name === "AbortError") {
-        logger.warn("Request timed out", { url, timeout: this.timeout });
-      } else {
-        logger.error("Error fetching page", { error, url });
-      }
+      logger.error("Error extracting structured data", { error, url });
       return null;
     }
   }
