@@ -66,7 +66,6 @@ export class GoogleAISummarizer {
     title: string,
     content: string,
     wordCount?: number,
-    maxTokens = 8192,
   ): Promise<Summary> {
     try {
       logger.info("Generating summary", {
@@ -84,7 +83,7 @@ export class GoogleAISummarizer {
       const generativeModel = this.genAI.getGenerativeModel({
         model: this.model,
         generationConfig: {
-          maxOutputTokens: maxTokens || this.maxOutputTokens,
+          maxOutputTokens: this.maxOutputTokens,
           temperature: API.GOOGLE_AI.DEFAULT_TEMPERATURE, // Lower temperature for more focused summaries
           topP: 0.95,
           topK: 40,
