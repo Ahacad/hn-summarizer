@@ -57,6 +57,7 @@ export class GoogleAISummarizer {
    * @param storyId The HackerNews story ID
    * @param title The title of the story
    * @param content The content to summarize
+   * @param wordCount Optional pre-calculated word count
    * @param maxTokens Maximum tokens for the summary
    * @returns The generated summary
    */
@@ -64,7 +65,8 @@ export class GoogleAISummarizer {
     storyId: HNStoryID,
     title: string,
     content: string,
-    maxTokens = 2048,
+    wordCount?: number,
+    maxTokens = 8192,
   ): Promise<Summary> {
     try {
       logger.info("Generating summary", {
@@ -125,7 +127,8 @@ export class GoogleAISummarizer {
         shortSummary: summary.shortSummary,
         keyPoints: summary.keyPoints,
         topics: summary.topics,
-        estimatedReadingTime: this.estimateReadingTime(content),
+        // Use provided wordCount if available, otherwise estimate from content
+        estimatedReadingTime: this.estimateReadingTime(content, wordCount),
         model: this.model,
         inputTokens: this.estimateTokenCount(prompt),
         outputTokens: this.estimateTokenCount(generatedText),
@@ -139,7 +142,7 @@ export class GoogleAISummarizer {
 
       logger.info("Summary generated successfully", {
         storyId,
-        summaryLength: result.summary.length,
+        summaryLength: summary.summary.length,
         processingTimeMs: endTime - startTime,
       });
 
@@ -221,6 +224,11 @@ export class GoogleAISummarizer {
           .split(/\n-|\n\*/)
           .map((point) => point.trim())
           .filter((point) => point.length > 0);
+
+        // Make sure we have valid key points
+        if (keyPoints.length === 0) {
+          keyPoints = undefined;
+        }
       }
 
       // Extract topics
@@ -233,10 +241,15 @@ export class GoogleAISummarizer {
           .split(/,|\n-|\n\*/)
           .map((topic) => topic.trim())
           .filter((topic) => topic.length > 0);
+
+        // Make sure we have valid topics
+        if (topics.length === 0) {
+          topics = undefined;
+        }
       }
 
       return {
-        summary,
+        summary: summary || text.trim(), // Ensure we always have at least the original text
         shortSummary,
         keyPoints,
         topics,
@@ -249,11 +262,21 @@ export class GoogleAISummarizer {
 
   /**
    * Estimate reading time for content
+   * Updated to accept pre-calculated wordCount
    */
-  private estimateReadingTime(content: string): number {
+  private estimateReadingTime(
+    content: string,
+    preCalculatedWordCount?: number,
+  ): number {
     // Average reading speed: 200-250 words per minute
     const wordsPerMinute = PROCESSING.READING_TIME.WORDS_PER_MINUTE;
-    const wordCount = content.split(/\s+/).length;
+
+    // Use provided word count if available, otherwise calculate
+    const wordCount =
+      preCalculatedWordCount !== undefined
+        ? preCalculatedWordCount
+        : content.split(/\s+/).filter((word) => word.length > 0).length;
+
     const readingTime = wordCount / wordsPerMinute;
 
     // Round to nearest half minute, with minimum of 1 minute

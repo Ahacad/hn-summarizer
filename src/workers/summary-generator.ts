@@ -89,6 +89,7 @@ export async function summaryGeneratorHandler(
           story.id,
           title,
           content.content,
+          content.wordCount,
         );
 
         // Save summary to R2
