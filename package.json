@@ -11,7 +11,12 @@
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
     "lint": "eslint 'src/**/*.ts'",
-    "format": "prettier --write 'src/**/*.ts'"
+    "format": "prettier --write 'src/**/*.ts'",
+    "release:patch": "standard-version --release-as patch",
+    "release:minor": "standard-version --release-as minor",
+    "release:major": "standard-version --release-as major",
+    "release:custom": "standard-version --release-as",
+    "publish:github": "git push --follow-tags origin main && gh release create \"v$(node -p \"require('./package.json').version\")\" --notes \"$(conventional-changelog -p angular -r 2)\""
   },
   "keywords": [],
   "author": "ahacad",
@@ -26,6 +31,7 @@
     "eslint": "^9.22.0",
     "jest": "^29.7.0",
     "prettier": "^3.5.3",
+    "standard-version": "^9.5.0",
     "ts-jest": "^29.2.6",
     "typescript": "^5.8.2",
     "wrangler": "^4.0.0"
