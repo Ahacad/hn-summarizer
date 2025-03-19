@@ -45,13 +45,13 @@ export const API = {
     DEFAULT_MODEL: "gemini-2.0-flash",
 
     /** Default maximum tokens for summaries */
-    DEFAULT_MAX_TOKENS: 2048,
+    DEFAULT_MAX_TOKENS: 8192,
 
     /** Default temperature for generation */
     DEFAULT_TEMPERATURE: 0.2,
 
     /** Maximum character length for content before truncation */
-    MAX_CONTENT_CHARS: 30000,
+    MAX_CONTENT_CHARS: 100000,
   },
 };
 
