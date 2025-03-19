@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.1](https://github.com/Ahacad/hn-summarizer/compare/v0.2.0...v0.2.1) (2025-03-19)
+
+
+### CI
+
+* add conventional-changelog to devDeps, fix publish:github script ([3b1ce23](https://github.com/Ahacad/hn-summarizer/commit/3b1ce23f69d115567b91c02acac76425d0c4850a))
+
 ## 0.2.0 (2025-03-19)
 
 
