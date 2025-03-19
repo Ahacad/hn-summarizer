@@ -119,7 +119,7 @@ export class GoogleAISummarizer {
       const summary = this.parseSummaryResponse(generatedText);
 
       // Create the summary object
-      const result: Summary = {
+      const res: Summary = {
         storyId,
         summary: summary.summary,
         shortSummary: summary.shortSummary,
@@ -143,7 +143,7 @@ export class GoogleAISummarizer {
         processingTimeMs: endTime - startTime,
       });
 
-      return result;
+      return res;
     } catch (error) {
       logger.error("Error generating summary", { error, storyId });
       throw error;
