@@ -6,7 +6,7 @@ A serverless application that automatically summarizes top HackerNews stories us
 
 - 🔍 Fetches top stories from HackerNews API
 - 📰 Extracts and cleans content from the linked articles
-- 🤖 Generates concise summaries using Google AI
+- 🤖 Generates concise summaries using Google AI (Gemini)
 - 📱 Delivers summaries via Telegram and/or Discord
 - ☁️ Runs entirely on Cloudflare Workers, D1, and R2
 
@@ -23,8 +23,9 @@ The application follows a serverless architecture with these components:
 
 - Node.js 16+
 - Cloudflare account with Workers, D1, and R2 access
-- Google AI API key
-- Telegram Bot token and/or Discord webhook URL
+- Google AI API key for Gemini
+- A self-hosted Firecrawl API endpoint for content extraction
+- Telegram Bot token and/or Discord webhook URL (at least one is required for notifications)
 
 ## Setup
 
@@ -41,30 +42,37 @@ cd hn-summarizer
 npm install
 ```
 
-3. Create the D1 database:
+3. Copy the example configuration and update it with your settings:
+
+```bash
+cp wrangler.example.toml wrangler.toml
+```
+
+Then edit `wrangler.toml` and replace `<YOUR_DATABASE_ID>` with your actual database ID.
+
+4. Create the D1 database:
 
 ```bash
 wrangler d1 create hn-summarizer
 ```
 
-4. Apply the database migrations:
+5. Apply the database migrations:
 
 ```bash
 wrangler d1 execute hn-summarizer --file=./migrations/001_initial_schema.sql
 ```
 
-5. Create the R2 bucket:
+6. Create the R2 bucket:
 
 ```bash
 wrangler r2 bucket create hn-summarizer-content
 ```
 
-6. Update `wrangler.toml` with your database ID and bucket name.
-
 7. Add your secrets:
 
 ```bash
 wrangler secret put GOOGLE_AI_API_KEY
+wrangler secret put FIRECRAWL_API_URL
 wrangler secret put TELEGRAM_BOT_TOKEN  # Optional
 wrangler secret put DISCORD_WEBHOOK_URL  # Optional
 ```
@@ -82,7 +90,7 @@ npm run dev
 Deploy to Cloudflare Workers:
 
 ```bash
-npm run deploy
+npm run publish
 ```
 
 ## Testing
@@ -91,6 +99,12 @@ Run the test suite:
 
 ```bash
 npm test
+```
+
+Generate coverage report:
+
+```bash
+npm run test:coverage
 ```
 
 ## Project Structure
@@ -111,8 +125,17 @@ hn-summarizer/
 │   ├── types/                 # TypeScript type definitions
 │   ├── utils/                 # Utility functions
 │   └── workers/               # Worker handlers
-└── migrations/                # Database migrations
+├── migrations/                # Database migrations
+└── wrangler.example.toml      # Example Cloudflare configuration
 ```
+
+## How It Works
+
+1. The system fetches top stories from HackerNews at regular intervals
+2. For each story, it extracts and processes the content using Firecrawl
+3. The processed content is then summarized using Google's Gemini AI
+4. Summaries are delivered to configured notification channels
+5. All operations run on scheduled Cloudflare Workers
 
 ## Future Enhancements
 
@@ -124,6 +147,7 @@ hn-summarizer/
 
 ## License
 
+[Your License Here]
 
 ## Contributing
 
