@@ -12,9 +12,9 @@
     "test:coverage": "jest --coverage",
     "lint": "eslint 'src/**/*.ts'",
     "format": "prettier --write 'src/**/*.ts'",
-    "release:patch": "standard-version --release-as patch",
-    "release:minor": "standard-version --release-as minor",
-    "release:major": "standard-version --release-as major",
+    "release:patch": "standard-version --release-as patch && npm run publish:github",
+    "release:minor": "standard-version --release-as minor && npm run publish:github",
+    "release:major": "standard-version --release-as major && npm run publish:github",
     "release:custom": "standard-version --release-as",
     "publish:github": "git push --follow-tags origin master && node scripts/extract-latest-release.js && gh release create \"v$(node -p \"require('./package.json').version\")\" --notes-file LATEST_RELEASE.md && rm LATEST_RELEASE.md"
   },
