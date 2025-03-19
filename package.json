@@ -16,7 +16,7 @@
     "release:minor": "standard-version --release-as minor",
     "release:major": "standard-version --release-as major",
     "release:custom": "standard-version --release-as",
-    "publish:github": "git push --follow-tags origin main && node -e \"const fs = require('fs'); const changelog = fs.readFileSync('CHANGELOG.md', 'utf8'); const versionMatch = changelog.match(/(#+\\s\\[[0-9]+\\.[0-9]+\\.[0-9]+\\].*?(?=#+\\s\\[[0-9]+|$))/s); const latestRelease = versionMatch ? versionMatch[0] : ''; fs.writeFileSync('LATEST_RELEASE.md', latestRelease);\" && gh release create \"v$(node -p \"require('./package.json').version\")\" --notes-file LATEST_RELEASE.md && rm LATEST_RELEASE.md"
+    "publish:github": "git push --follow-tags origin master && node scripts/extract-latest-release.js && gh release create \"v$(node -p \"require('./package.json').version\")\" --notes-file LATEST_RELEASE.md && rm LATEST_RELEASE.md"
   },
   "keywords": [],
   "author": "ahacad",
