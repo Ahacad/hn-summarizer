@@ -1,0 +1,48 @@
+# Cloudflare Workers configuration
+name = "hn-summarizer"
+main = "src/index.ts"
+compatibility_date = "2024-09-23"
+compatibility_flags = ["nodejs_compat"]
+
+workers_dev = true
+
+# D1 Database binding - replace with your own database ID
+[[ d1_databases ]]
+binding = "HN_SUMMARIZER_DB"
+database_name = "hn-summarizer"
+database_id = "<YOUR_DATABASE_ID>"
+
+# R2 bucket binding
+[[r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "hn-summarizer-content"
+preview_bucket_name = "hn-summarizer-content-dev"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "development"
+LOG_LEVEL = "debug"
+MAX_STORIES_PER_FETCH = "30"
+SUMMARIZATION_MAX_TOKENS = "8192"
+
+# Production environment variables
+[env.production]
+ENVIRONMENT = "production"
+LOG_LEVEL = "info"
+MAX_STORIES_PER_FETCH = "50"
+SUMMARIZATION_MAX_TOKENS = "8192"
+
+# Secrets (to be set using 'wrangler secret put'):
+# - GOOGLE_AI_API_KEY
+# - TELEGRAM_BOT_TOKEN (optional)
+# - DISCORD_WEBHOOK_URL (optional)
+# - FIRECRAWL_API_URL
+
+# Cron triggers
+[triggers]
+crons = [
+  "*/30 * * * *",  # Fetch new stories every 30 minutes
+  "*/15 * * * *",  # Process content every 15 minutes
+  "*/10 * * * *",  # Generate summaries every 10 minutes
+  "*/5 * * * *"    # Send notifications every 5 minutes
+]
