@@ -42,7 +42,8 @@ export const API = {
    */
   GOOGLE_AI: {
     /** Default model to use */
-    DEFAULT_MODEL: "gemini-2.0-flash",
+    // DEFAULT_MODEL: "gemini-2.0-flash",
+    DEFAULT_MODEL: "gemini-2.0-pro-exp-02-05",
 
     /** Default maximum tokens for summaries */
     DEFAULT_MAX_TOKENS: 8192,
