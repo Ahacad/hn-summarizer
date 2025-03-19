@@ -22,7 +22,7 @@ export class DiscordNotifier {
   constructor(webhookUrl?: string) {
     // Get webhook URL from environment if not provided
     this.webhookUrl = webhookUrl || ENV.get("DISCORD_WEBHOOK_URL");
-    
+
     if (!this.webhookUrl) {
       logger.warn("Discord webhook URL not configured");
     }
@@ -41,56 +41,74 @@ export class DiscordNotifier {
     try {
       // Create a simpler payload without using Discord.js
       const payload = {
-        embeds: [{
-          title: story.title,
-          url: story.url,
-          description: summary.shortSummary || summary.summary.substring(0, 300),
-          color: 0x0000FF, // Blue
-          fields: [
-            {
-              name: "Summary",
-              value: this.truncateText(summary.summary, 1024)
+        embeds: [
+          {
+            title: story.title,
+            url: story.url,
+            description:
+              summary.shortSummary || summary.summary.substring(0, 300),
+            color: 0x0000ff, // Blue
+            fields: [
+              {
+                name: "Summary",
+                value: this.truncateText(summary.summary, 1024),
+              },
+              ...(summary.keyPoints
+                ? [
+                    {
+                      name: "Key Points",
+                      value: summary.keyPoints
+                        .map((point) => `• ${point}`)
+                        .join("\n")
+                        .substring(0, 1024),
+                    },
+                  ]
+                : []),
+              ...(summary.topics
+                ? [
+                    {
+                      name: "Topics",
+                      value: summary.topics.join(", "),
+                      inline: true,
+                    },
+                  ]
+                : []),
+              ...(summary.estimatedReadingTime
+                ? [
+                    {
+                      name: "Reading Time",
+                      value: `${summary.estimatedReadingTime} min`,
+                      inline: true,
+                    },
+                  ]
+                : []),
+              {
+                name: "HackerNews",
+                value: `[Discussion](https://news.ycombinator.com/item?id=${story.id})`,
+                inline: true,
+              },
+            ],
+            footer: {
+              text: `Score: ${story.score} | By: ${story.by} | Summarized by HN Summarizer`,
             },
-            ...(summary.keyPoints ? [{
-              name: "Key Points",
-              value: summary.keyPoints.map(point => `• ${point}`).join('\n').substring(0, 1024)
-            }] : []),
-            ...(summary.topics ? [{
-              name: "Topics",
-              value: summary.topics.join(", "),
-              inline: true
-            }] : []),
-            ...(summary.estimatedReadingTime ? [{
-              name: "Reading Time",
-              value: `${summary.estimatedReadingTime} min`,
-              inline: true
-            }] : []),
-            {
-              name: "HackerNews",
-              value: `[Discussion](https://news.ycombinator.com/item?id=${story.id})`,
-              inline: true
-            }
-          ],
-          footer: {
-            text: `Score: ${story.score} | By: ${story.by} | Summarized by HN Summarizer`
+            timestamp: new Date().toISOString(),
           },
-          timestamp: new Date().toISOString()
-        }]
+        ],
       };
 
       // Send to Discord webhook
       const response = await fetch(this.webhookUrl!, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json'
+          "Content-Type": "application/json",
         },
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
       });
 
       if (!response.ok) {
-        logger.warn("Discord webhook request failed", { 
+        logger.warn("Discord webhook request failed", {
           status: response.status,
-          statusText: response.statusText
+          statusText: response.statusText,
         });
         return false;
       }

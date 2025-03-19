@@ -24,20 +24,21 @@ export class ContentExtractor {
    * @param apiUrl Firecrawl API URL (optional, will use env var if not provided)
    * @param apiKey Firecrawl API key (optional for self-hosted API)
    */
-  constructor(
-    apiUrl?: string,
-    apiKey?: string
-  ) {
+  constructor(apiUrl?: string, apiKey?: string) {
     const configuredUrl = apiUrl || ENV.get("FIRECRAWL_API_URL");
-    
+
     if (!configuredUrl) {
-      throw new Error("Firecrawl API URL is required. Set FIRECRAWL_API_URL environment variable or pass it to the constructor.");
+      throw new Error(
+        "Firecrawl API URL is required. Set FIRECRAWL_API_URL environment variable or pass it to the constructor.",
+      );
     }
-    
+
     // Initialize the Firecrawl client
     this.firecrawlClient = new FirecrawlClient(configuredUrl, apiKey);
-    
-    logger.debug("Initialized Content Extractor with Firecrawl API", { apiUrl: configuredUrl });
+
+    logger.debug("Initialized Content Extractor with Firecrawl API", {
+      apiUrl: configuredUrl,
+    });
   }
 
   /**
@@ -83,7 +84,7 @@ export class ContentExtractor {
 
   /**
    * Extract structured data from a URL
-   * 
+   *
    * @param url URL to extract data from
    * @returns Structured data or null if extraction failed
    */
@@ -97,51 +98,53 @@ export class ContentExtractor {
         properties: {
           title: {
             type: "string",
-            description: "The title of the article"
+            description: "The title of the article",
           },
           author: {
             type: "string",
-            description: "The author of the article"
+            description: "The author of the article",
           },
           publishDate: {
             type: "string",
-            description: "The publication date of the article"
+            description: "The publication date of the article",
           },
           content: {
             type: "string",
-            description: "The main content of the article"
+            description: "The main content of the article",
           },
           summary: {
             type: "string",
-            description: "A brief summary of the article"
+            description: "A brief summary of the article",
           },
           topics: {
             type: "array",
             items: {
-              type: "string"
+              type: "string",
             },
-            description: "Main topics covered in the article"
-          }
+            description: "Main topics covered in the article",
+          },
         },
-        required: ["title", "content"]
+        required: ["title", "content"],
       };
 
       // Extract structured data using Firecrawl
       const data = await this.firecrawlClient.extractStructuredData(
-        url, 
+        url,
         schema,
-        "Extract the article's title, author, publication date, main content, a brief summary, and the main topics covered."
+        "Extract the article's title, author, publication date, main content, a brief summary, and the main topics covered.",
       );
 
       if (!data) {
-        logger.warn("Failed to extract structured data with Firecrawl API", { url });
+        logger.warn("Failed to extract structured data with Firecrawl API", {
+          url,
+        });
         return null;
       }
 
       logger.debug("Successfully extracted structured data", {
         url,
         hasTitle: !!data.title,
-        hasContent: !!data.content
+        hasContent: !!data.content,
       });
 
       return data;
