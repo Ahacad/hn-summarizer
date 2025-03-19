@@ -2,3 +2,5 @@ node_modules
 coverage
 repomix-output.txt
 .dev.vars
+.wrangler
+todos.txt
