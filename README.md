@@ -147,7 +147,7 @@ hn-summarizer/
 
 ## License
 
-[Your License Here]
+see [LICENSE.md](./LICENSE.md)
 
 ## Contributing
 
