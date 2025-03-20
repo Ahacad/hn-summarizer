@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.2.5](https://github.com/Ahacad/hn-summarizer/compare/v0.2.4...v0.2.5) (2025-03-20)
+
+
+### Performance Improvements
+
+* **content-processor:** using concurrent content processor now ([99cbcd3](https://github.com/Ahacad/hn-summarizer/commit/99cbcd33230f6083344681f09c7e20ff34d437bf))
+
+
+### Chores
+
+* **google-ai.ts:** remove redundant maxTokens variable in summarize function ([c317fd3](https://github.com/Ahacad/hn-summarizer/commit/c317fd32925da7911e4cc29cf754cf1102e31cb1))
+
+
+### Code Refactoring
+
+* **index.ts:** change the way cronjobs are handled ([6d6a2e6](https://github.com/Ahacad/hn-summarizer/commit/6d6a2e6c35fa3855ff7e8b6600146e6ef660f199))
+
+
+### Styling
+
+* format code ([bf4ea26](https://github.com/Ahacad/hn-summarizer/commit/bf4ea2631f7e3b1cc585d267b0d98a85cb1c0342))
+
+
+### CI
+
+* add husky, running npm format before committing ([d5a981c](https://github.com/Ahacad/hn-summarizer/commit/d5a981cdd0bd3e353656295f7a4eb4fd19bb1419))
+* fix husky format and commit logic ([8c65a4e](https://github.com/Ahacad/hn-summarizer/commit/8c65a4e6c890b28f134b035c09ae9f354d89af5a))
+
+
+### Documentation
+
+* add license ([46b15b8](https://github.com/Ahacad/hn-summarizer/commit/46b15b82b9bacc3a2a74e3200676d95fbbe50856))
+
 ### [0.2.4](https://github.com/Ahacad/hn-summarizer/compare/v0.2.3...v0.2.4) (2025-03-19)
 
 
