@@ -23,6 +23,10 @@ CREATE INDEX idx_stories_status ON stories(status);
 -- Create index on processed_at for time-based queries
 CREATE INDEX idx_stories_processed_at ON stories(processed_at);
 
+-- Create combined index on story status and processed_at 
+-- for efficient queries to get latest stories by status
+CREATE INDEX idx_stories_status_processed ON stories(status, processed_at DESC);
+
 -- Notifications table
 -- Tracks when and where summaries have been sent
 CREATE TABLE notifications (
@@ -37,6 +41,42 @@ CREATE TABLE notifications (
 
 -- Create combined index on story_id and channel
 CREATE UNIQUE INDEX idx_notifications_story_channel ON notifications(story_id, channel);
+
+-- Create a more detailed notifications table
+-- This will allow tracking multiple notification attempts per story
+CREATE TABLE notification_details (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  story_id INTEGER NOT NULL,
+  channel TEXT NOT NULL,         -- 'telegram', 'discord', etc.
+  status TEXT NOT NULL,          -- 'pending', 'sent', 'failed'
+  attempt_count INTEGER DEFAULT 1,
+  first_attempt_at TEXT,
+  last_attempt_at TEXT,
+  sent_at TEXT,                  -- When the notification was successfully sent
+  error TEXT,                    -- Error message if failed
+  FOREIGN KEY (story_id) REFERENCES stories(id)
+);
+
+-- Create index on story_id for efficient lookups
+CREATE INDEX idx_notification_details_story_id ON notification_details(story_id);
+
+-- Add triggers to automatically set timestamps
+CREATE TRIGGER set_notification_first_attempt_time
+AFTER INSERT ON notification_details
+BEGIN
+  UPDATE notification_details
+  SET first_attempt_at = CURRENT_TIMESTAMP,
+      last_attempt_at = CURRENT_TIMESTAMP
+  WHERE id = NEW.id AND first_attempt_at IS NULL;
+END;
+
+CREATE TRIGGER set_notification_last_attempt_time
+AFTER UPDATE OF attempt_count ON notification_details
+BEGIN
+  UPDATE notification_details
+  SET last_attempt_at = CURRENT_TIMESTAMP
+  WHERE id = NEW.id;
+END;
 
 -- Settings table
 -- Stores application settings
