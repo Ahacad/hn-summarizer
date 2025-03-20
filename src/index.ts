@@ -17,8 +17,8 @@ import { CRON } from "./config/constants";
 
 // Extract minute intervals from cron patterns
 function extractMinuteInterval(cronPattern: string): number {
-  const minutePart = cronPattern.split(' ')[0];
-  if (minutePart.startsWith('*/')) {
+  const minutePart = cronPattern.split(" ")[0];
+  if (minutePart.startsWith("*/")) {
     return parseInt(minutePart.substring(2), 10);
   }
   return 0; // Default if pattern is not recognized
@@ -29,7 +29,7 @@ const INTERVALS = {
   FETCH_STORIES: extractMinuteInterval(CRON.FETCH_STORIES),
   PROCESS_CONTENT: extractMinuteInterval(CRON.PROCESS_CONTENT),
   GENERATE_SUMMARIES: extractMinuteInterval(CRON.GENERATE_SUMMARIES),
-  SEND_NOTIFICATIONS: extractMinuteInterval(CRON.SEND_NOTIFICATIONS)
+  SEND_NOTIFICATIONS: extractMinuteInterval(CRON.SEND_NOTIFICATIONS),
 };
 
 // Initialize the router
@@ -55,7 +55,7 @@ export default {
   async fetch(
     request: Request,
     env: ENV,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ): Promise<Response> {
     // Initialize environment
     ENV.init(env);
@@ -73,52 +73,64 @@ export default {
   async scheduled(
     event: ScheduledEvent,
     env: ENV,
-    ctx: ExecutionContext
+    ctx: ExecutionContext,
   ): Promise<void> {
     // Initialize environment
     ENV.init(env);
 
     try {
       logger.info("Scheduled event triggered", { cron: event.cron });
-      
+
       const now = new Date();
       const minute = now.getMinutes();
-      
+
       // Create a dummy request for the handlers
       const url = new URL("https://dummy.com");
       const dummyRequest = new Request(url.toString(), { method: "GET" });
-      
+
       // Track which workers ran
       const workersRun = [];
-      
+
       // Check each worker against its interval
-      if (INTERVALS.FETCH_STORIES > 0 && minute % INTERVALS.FETCH_STORIES === 0) {
+      if (
+        INTERVALS.FETCH_STORIES > 0 &&
+        minute % INTERVALS.FETCH_STORIES === 0
+      ) {
         logger.info("Running story fetcher");
         await storyFetcherHandler(dummyRequest, env, ctx);
         workersRun.push("storyFetcher");
       }
-      
-      if (INTERVALS.PROCESS_CONTENT > 0 && minute % INTERVALS.PROCESS_CONTENT === 0) {
+
+      if (
+        INTERVALS.PROCESS_CONTENT > 0 &&
+        minute % INTERVALS.PROCESS_CONTENT === 0
+      ) {
         logger.info("Running content processor");
         await contentProcessorHandler(dummyRequest, env, ctx);
         workersRun.push("contentProcessor");
       }
-      
-      if (INTERVALS.GENERATE_SUMMARIES > 0 && minute % INTERVALS.GENERATE_SUMMARIES === 0) {
+
+      if (
+        INTERVALS.GENERATE_SUMMARIES > 0 &&
+        minute % INTERVALS.GENERATE_SUMMARIES === 0
+      ) {
         logger.info("Running summary generator");
         await summaryGeneratorHandler(dummyRequest, env, ctx);
         workersRun.push("summaryGenerator");
       }
-      
-      if (INTERVALS.SEND_NOTIFICATIONS > 0 && minute % INTERVALS.SEND_NOTIFICATIONS === 0) {
+
+      if (
+        INTERVALS.SEND_NOTIFICATIONS > 0 &&
+        minute % INTERVALS.SEND_NOTIFICATIONS === 0
+      ) {
         logger.info("Running notification sender");
         await notificationSenderHandler(dummyRequest, env, ctx);
         workersRun.push("notificationSender");
       }
-      
-      logger.info("Orchestration completed", { 
-        minute, 
-        workersRun: workersRun.join(', ') || 'none'
+
+      logger.info("Orchestration completed", {
+        minute,
+        workersRun: workersRun.join(", ") || "none",
       });
     } catch (error) {
       logger.error("Error in scheduled job", { error, cron: event.cron });
