@@ -41,8 +41,6 @@ SUMMARIZATION_MAX_TOKENS = "8192"
 # Cron triggers
 [triggers]
 crons = [
-  "*/30 * * * *",  # Fetch new stories every 30 minutes
-  "*/15 * * * *",  # Process content every 15 minutes
-  "*/10 * * * *",  # Generate summaries every 10 minutes
-  "*/5 * * * *"    # Send notifications every 5 minutes
+    # Run the orchestrator every 5 minutes to check all tasks
+    "*/5 * * * *",
 ]
