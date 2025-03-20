@@ -11,9 +11,12 @@ import { storyFetcherHandler } from "./workers/story-fetcher";
 import { contentProcessorHandler } from "./workers/content-processor";
 import { summaryGeneratorHandler } from "./workers/summary-generator";
 import { notificationSenderHandler } from "./workers/notification-sender";
+import { storiesHandler } from "./api/routes/stories";
+import { summariesHandler } from "./api/routes/summaries";
 import { logger } from "./utils/logger";
 import { ENV } from "./config/environment";
 import { CRON } from "./config/constants";
+import { ProcessingStatus } from "./types/story";
 
 // Extract minute intervals from cron patterns
 function extractMinuteInterval(cronPattern: string): number {
@@ -41,14 +44,9 @@ router.add("GET", "/cron/process-content", contentProcessorHandler);
 router.add("GET", "/cron/generate-summaries", summaryGeneratorHandler);
 router.add("GET", "/cron/send-notifications", notificationSenderHandler);
 
-// For future web interface
-router.add("GET", "/api/stories", async (request, env) => {
-  return new Response("Stories API - Coming soon", { status: 200 });
-});
-
-router.add("GET", "/api/summaries", async (request, env) => {
-  return new Response("Summaries API - Coming soon", { status: 200 });
-});
+// Register API routes
+router.add("GET", "/api/stories", storiesHandler);
+router.add("GET", "/api/summaries", summariesHandler);
 
 // Define the fetch event handler for the worker
 export default {

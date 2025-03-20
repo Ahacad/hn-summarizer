@@ -181,6 +181,63 @@ export class StoryRepository {
   }
 
   /**
+   * Get stories by multiple statuses
+   *
+   * @param statuses Array of processing statuses to filter by
+   * @param limit Maximum number of stories to return
+   * @returns Array of stories
+   */
+  async getStoriesByMultipleStatuses(
+    statuses: ProcessingStatus[],
+    limit = 10,
+  ): Promise<ProcessedStory[]> {
+    try {
+      if (!statuses || statuses.length === 0) {
+        return [];
+      }
+
+      // Create placeholders for the SQL query
+      const placeholders = statuses.map(() => "?").join(",");
+
+      const query = `
+        SELECT * FROM stories 
+        WHERE status IN (${placeholders}) 
+        ORDER BY score DESC, time DESC
+        LIMIT ?
+      `;
+
+      // Create binding parameters
+      const params = [...statuses, limit];
+
+      const results = await this.db
+        .prepare(query)
+        .bind(...params)
+        .all<StoriesRow>();
+
+      return results.results.map((row) => this.mapRowToStory(row));
+    } catch (error) {
+      logger.error("Error getting stories by multiple statuses", {
+        error,
+        statuses,
+      });
+      return [];
+    }
+  }
+
+  /**
+   * Get the latest completed and sent stories
+   *
+   * @param limit Maximum number of stories to return
+   * @returns Array of stories
+   */
+  async getLatestProcessedStories(limit = 10): Promise<ProcessedStory[]> {
+    return this.getStoriesByMultipleStatuses(
+      [ProcessingStatus.COMPLETED, ProcessingStatus.SENT],
+      limit,
+    );
+  }
+
+  /**
    * Update story status
    *
    * @param id Story ID
@@ -326,12 +383,12 @@ export class StoryRepository {
         .prepare(
           `
         SELECT * FROM stories 
-        WHERE status = ?
+        WHERE status IN (?, ?)
         ORDER BY processed_at DESC
         LIMIT ?
       `,
         )
-        .bind(ProcessingStatus.COMPLETED, limit)
+        .bind(ProcessingStatus.COMPLETED, ProcessingStatus.SENT, limit)
         .all<StoriesRow>();
 
       return results.results.map((row) => this.mapRowToStory(row));
