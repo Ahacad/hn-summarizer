@@ -16,7 +16,8 @@
     "release:minor": "standard-version --release-as minor && npm run publish:github",
     "release:major": "standard-version --release-as major && npm run publish:github",
     "release:custom": "standard-version --release-as",
-    "publish:github": "git push --follow-tags origin master && node scripts/extract-latest-release.js && gh release create \"v$(node -p \"require('./package.json').version\")\" --notes-file LATEST_RELEASE.md && rm LATEST_RELEASE.md"
+    "publish:github": "git push --follow-tags origin master && node scripts/extract-latest-release.js && gh release create \"v$(node -p \"require('./package.json').version\")\" --notes-file LATEST_RELEASE.md && rm LATEST_RELEASE.md",
+    "prepare": "husky install"
   },
   "keywords": [],
   "author": "ahacad",
@@ -30,6 +31,7 @@
     "@typescript-eslint/parser": "^8.26.1",
     "conventional-changelog-cli": "^5.0.0",
     "eslint": "^9.22.0",
+    "husky": "^8.0.0",
     "jest": "^29.7.0",
     "prettier": "^3.5.3",
     "standard-version": "^9.5.0",
