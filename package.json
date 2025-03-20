@@ -6,7 +6,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "wrangler dev",
-    "publish": "wrangler publish",
+    "publish:cloudflare": "wrangler deploy --env production",
     "test": "jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
