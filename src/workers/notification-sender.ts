@@ -38,7 +38,7 @@ export async function notificationSenderHandler(
 
     logger.debug("Notification sender configuration", { batchSize });
 
-    // Get completed stories
+    // Get completed stories that haven't been sent yet
     const stories = await storyRepo.getStoriesByStatus(
       ProcessingStatus.COMPLETED,
       batchSize,
@@ -59,6 +59,7 @@ export async function notificationSenderHandler(
         failed: 0,
         skipped: 0,
       },
+      storyStatusUpdated: 0,
     };
 
     // Process each story
@@ -90,6 +91,9 @@ export async function notificationSenderHandler(
         // Get the full story details from HackerNews
         const fullStory = await hnClient.getStory(story.id);
 
+        // Track if notifications were successfully sent to any channel
+        let notificationSentSuccessfully = false;
+
         // Send notifications to configured channels
 
         // Telegram
@@ -103,6 +107,7 @@ export async function notificationSenderHandler(
             if (success) {
               results.telegram.sent++;
               logger.info("Sent summary to Telegram", { storyId: story.id });
+              notificationSentSuccessfully = true;
             } else {
               results.telegram.failed++;
               logger.warn("Failed to send summary to Telegram", {
@@ -131,6 +136,7 @@ export async function notificationSenderHandler(
             if (success) {
               results.discord.sent++;
               logger.info("Sent summary to Discord", { storyId: story.id });
+              notificationSentSuccessfully = true;
             } else {
               results.discord.failed++;
               logger.warn("Failed to send summary to Discord", {
@@ -148,8 +154,12 @@ export async function notificationSenderHandler(
           results.discord.skipped++;
         }
 
-        // TODO: In a future enhancement, we would store notification status in the database
-        // For now, we just log the results
+        // Update story status to SENT if at least one notification channel was successful
+        if (notificationSentSuccessfully) {
+          await storyRepo.updateStatus(story.id, ProcessingStatus.SENT);
+          results.storyStatusUpdated++;
+          logger.info("Updated story status to SENT", { storyId: story.id });
+        }
       } catch (error) {
         logger.error("Error processing notification for story", {
           error,

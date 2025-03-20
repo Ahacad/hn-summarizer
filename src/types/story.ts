@@ -51,6 +51,7 @@ export enum ProcessingStatus {
   EXTRACTED = "extracted",
   SUMMARIZING = "summarizing",
   COMPLETED = "completed",
+  SENT = "sent",
   FAILED = "failed",
 }
 
