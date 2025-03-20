@@ -123,6 +123,18 @@ export const ENV_DEFAULTS = {
   /** Default maximum stories per fetch */
   MAX_STORIES_PER_FETCH: 30,
 
+  /** Default maximum stories per content processing run */
+  CONTENT_PROCESSOR_BATCH_SIZE: 10,
+
+  /** Default concurrency for content processing */
+  CONTENT_PROCESSOR_CONCURRENCY: 5,
+
+  /** Default maximum stories per summary generation run */
+  SUMMARY_GENERATOR_BATCH_SIZE: 5,
+
+  /** Default maximum stories per notification run */
+  NOTIFICATION_SENDER_BATCH_SIZE: 5,
+
   /** Default maximum tokens for summarization */
   SUMMARIZATION_MAX_TOKENS: 2048,
 };

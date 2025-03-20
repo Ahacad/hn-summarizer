@@ -28,16 +28,24 @@ export async function summaryGeneratorHandler(
     // Initialize dependencies
     const summarizer = new GoogleAISummarizer(
       undefined,
-      ENV.get("SUMMARIZATION_MAX_TOKENS") || 300,
+      ENV.get("SUMMARIZATION_MAX_TOKENS"),
     );
     const storyRepo = new StoryRepository();
     const contentRepo = new ContentRepository();
     const hnClient = new HackerNewsClient();
 
+    // Get batch size from environment
+    const batchSize = ENV.get("SUMMARY_GENERATOR_BATCH_SIZE");
+
+    logger.debug("Summary generator configuration", {
+      batchSize,
+      maxTokens: ENV.get("SUMMARIZATION_MAX_TOKENS"),
+    });
+
     // Get stories that need summarization
     const stories = await storyRepo.getStoriesByStatus(
       ProcessingStatus.EXTRACTED,
-      5,
+      batchSize,
     );
     logger.info("Found stories to summarize", { count: stories.length });
 

@@ -25,6 +25,10 @@ export interface EnvBindings {
   ENVIRONMENT: "development" | "production";
   LOG_LEVEL: "debug" | "info" | "warn" | "error";
   MAX_STORIES_PER_FETCH: number;
+  CONTENT_PROCESSOR_BATCH_SIZE: number;
+  CONTENT_PROCESSOR_CONCURRENCY: number;
+  SUMMARY_GENERATOR_BATCH_SIZE: number;
+  NOTIFICATION_SENDER_BATCH_SIZE: number;
   SUMMARIZATION_MAX_TOKENS: number;
 }
 
@@ -87,6 +91,26 @@ export class ENV {
 
     if (!this.instance.MAX_STORIES_PER_FETCH) {
       this.instance.MAX_STORIES_PER_FETCH = ENV_DEFAULTS.MAX_STORIES_PER_FETCH;
+    }
+
+    if (!this.instance.CONTENT_PROCESSOR_BATCH_SIZE) {
+      this.instance.CONTENT_PROCESSOR_BATCH_SIZE =
+        ENV_DEFAULTS.CONTENT_PROCESSOR_BATCH_SIZE;
+    }
+
+    if (!this.instance.CONTENT_PROCESSOR_CONCURRENCY) {
+      this.instance.CONTENT_PROCESSOR_CONCURRENCY =
+        ENV_DEFAULTS.CONTENT_PROCESSOR_CONCURRENCY;
+    }
+
+    if (!this.instance.SUMMARY_GENERATOR_BATCH_SIZE) {
+      this.instance.SUMMARY_GENERATOR_BATCH_SIZE =
+        ENV_DEFAULTS.SUMMARY_GENERATOR_BATCH_SIZE;
+    }
+
+    if (!this.instance.NOTIFICATION_SENDER_BATCH_SIZE) {
+      this.instance.NOTIFICATION_SENDER_BATCH_SIZE =
+        ENV_DEFAULTS.NOTIFICATION_SENDER_BATCH_SIZE;
     }
 
     if (!this.instance.SUMMARIZATION_MAX_TOKENS) {

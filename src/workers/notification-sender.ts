@@ -13,6 +13,7 @@ import { DiscordNotifier } from "../services/notifications/discord";
 import { logger } from "../utils/logger";
 import { HackerNewsClient } from "../services/hackernews/client";
 import { NotificationStatus } from "../types/summary";
+import { ENV } from "../config/environment";
 
 /**
  * Handler for the notification sender worker
@@ -32,10 +33,15 @@ export async function notificationSenderHandler(
     const discordNotifier = new DiscordNotifier();
     const hnClient = new HackerNewsClient();
 
+    // Get batch size from environment
+    const batchSize = ENV.get("NOTIFICATION_SENDER_BATCH_SIZE");
+
+    logger.debug("Notification sender configuration", { batchSize });
+
     // Get completed stories
     const stories = await storyRepo.getStoriesByStatus(
       ProcessingStatus.COMPLETED,
-      5,
+      batchSize,
     );
     logger.info("Found completed stories for notification", {
       count: stories.length,

@@ -10,6 +10,7 @@ import { StoryRepository } from "../storage/d1/story-repository";
 import { ContentRepository } from "../storage/r2/content-repository";
 import { ProcessingStatus } from "../types/story";
 import { logger } from "../utils/logger";
+import { ENV } from "../config/environment";
 
 // Default concurrency limit
 const DEFAULT_CONCURRENCY = 5;
@@ -30,17 +31,26 @@ export async function contentProcessorHandler(
     const storyRepo = new StoryRepository();
     const contentRepo = new ContentRepository();
 
+    // Get batch size and concurrency limits from environment
+    const batchSize = ENV.get("CONTENT_PROCESSOR_BATCH_SIZE");
+    const concurrencyLimit = ENV.get("CONTENT_PROCESSOR_CONCURRENCY");
+
+    logger.debug("Content processor configuration", {
+      batchSize,
+      concurrencyLimit,
+    });
+
     // Get stories that need processing
     const stories = await storyRepo.getStoriesByStatus(
       ProcessingStatus.PENDING,
-      10,
+      batchSize,
     );
     logger.info("Found stories to process", { count: stories.length });
 
     // Process stories with controlled concurrency
     const { successCount, failureCount } = await processStoriesWithConcurrency(
       stories,
-      DEFAULT_CONCURRENCY,
+      concurrencyLimit,
       contentExtractor,
       storyRepo,
       contentRepo,
