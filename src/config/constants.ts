@@ -91,6 +91,14 @@ export const PROCESSING = {
     /** Approximate characters per token for English text */
     CHARS_PER_TOKEN: 4,
   },
+
+  /**
+   * Retry configuration
+   */
+  RETRY: {
+    /** Default maximum number of retries */
+    DEFAULT_MAX_RETRIES: 3,
+  },
 };
 
 /**
@@ -137,4 +145,7 @@ export const ENV_DEFAULTS = {
 
   /** Default maximum tokens for summarization */
   SUMMARIZATION_MAX_TOKENS: 2048,
+
+  /** Default maximum retry attempts */
+  MAX_RETRY_ATTEMPTS: 5,
 };

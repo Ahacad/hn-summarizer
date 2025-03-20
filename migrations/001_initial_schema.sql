@@ -14,7 +14,8 @@ CREATE TABLE stories (
   summary_id TEXT,
   processed_at TEXT NOT NULL,
   updated_at TEXT NOT NULL,
-  error TEXT
+  error TEXT,
+  retry_count INTEGER DEFAULT 0
 );
 
 -- Create index on status for efficient queries
@@ -26,6 +27,9 @@ CREATE INDEX idx_stories_processed_at ON stories(processed_at);
 -- Create combined index on story status and processed_at 
 -- for efficient queries to get latest stories by status
 CREATE INDEX idx_stories_status_processed ON stories(status, processed_at DESC);
+
+-- Create index on status and retry count for efficient retry queries
+CREATE INDEX idx_stories_status_retry ON stories(status, retry_count);
 
 -- Notifications table
 -- Tracks when and where summaries have been sent

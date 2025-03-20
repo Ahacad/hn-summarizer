@@ -85,8 +85,8 @@ export class StoryRepository {
             `
           INSERT INTO stories (
             id, title, url, by, time, score, status, 
-            content_id, summary_id, processed_at, updated_at, error
-          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            content_id, summary_id, processed_at, updated_at, error, retry_count
+          ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
         `,
           )
           .bind(
@@ -102,6 +102,7 @@ export class StoryRepository {
             now,
             now,
             story.error || null,
+            story.retryCount || 0,
           )
           .run();
 
@@ -399,6 +400,190 @@ export class StoryRepository {
   }
 
   /**
+   * Mark a story for extraction retry
+   *
+   * @param id Story ID
+   * @param retryCount Current retry count
+   * @param error Optional error message
+   * @returns Whether the operation was successful
+   */
+  async markForExtractRetry(
+    id: HNStoryID,
+    retryCount: number = 0,
+    error?: string,
+  ): Promise<boolean> {
+    try {
+      const now = new Date().toISOString();
+
+      const result = await this.db
+        .prepare(
+          `
+        UPDATE stories 
+        SET status = ?, retry_count = ?, updated_at = ?, error = ?
+        WHERE id = ?
+      `,
+        )
+        .bind(
+          ProcessingStatus.RETRY_EXTRACT,
+          retryCount + 1,
+          now,
+          error || null,
+          id,
+        )
+        .run();
+
+      logger.debug("Marked story for extraction retry", {
+        storyId: id,
+        retryCount: retryCount + 1,
+        success: result.success,
+      });
+
+      return result.success;
+    } catch (error) {
+      logger.error("Error marking story for extraction retry", {
+        error,
+        storyId: id,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Mark a story for summarization retry
+   *
+   * @param id Story ID
+   * @param retryCount Current retry count
+   * @param error Optional error message
+   * @returns Whether the operation was successful
+   */
+  async markForSummarizeRetry(
+    id: HNStoryID,
+    retryCount: number = 0,
+    error?: string,
+  ): Promise<boolean> {
+    try {
+      const now = new Date().toISOString();
+
+      const result = await this.db
+        .prepare(
+          `
+        UPDATE stories 
+        SET status = ?, retry_count = ?, updated_at = ?, error = ?
+        WHERE id = ?
+      `,
+        )
+        .bind(
+          ProcessingStatus.RETRY_SUMMARIZE,
+          retryCount + 1,
+          now,
+          error || null,
+          id,
+        )
+        .run();
+
+      logger.debug("Marked story for summarization retry", {
+        storyId: id,
+        retryCount: retryCount + 1,
+        success: result.success,
+      });
+
+      return result.success;
+    } catch (error) {
+      logger.error("Error marking story for summarization retry", {
+        error,
+        storyId: id,
+      });
+      return false;
+    }
+  }
+
+  /**
+   * Get stories for content processing in priority order
+   *
+   * @param limit Maximum number of stories to return
+   * @returns Array of stories
+   */
+  async getStoriesForContentProcessing(limit = 10): Promise<ProcessedStory[]> {
+    try {
+      const MAX_RETRIES =
+        ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
+
+      // Get retry stories first (with retry count limit), then pending stories
+      const results = await this.db
+        .prepare(
+          `
+        SELECT * FROM stories 
+        WHERE (status = ? AND retry_count < ?) OR status = ?
+        ORDER BY 
+          CASE 
+            WHEN status = ? THEN 0 -- RETRY_EXTRACT gets priority
+            ELSE 1                 -- PENDING comes second
+          END,
+          retry_count ASC,         -- Lower retry count first
+          score DESC               -- Higher score stories first
+        LIMIT ?
+      `,
+        )
+        .bind(
+          ProcessingStatus.RETRY_EXTRACT,
+          MAX_RETRIES,
+          ProcessingStatus.PENDING,
+          ProcessingStatus.RETRY_EXTRACT,
+          limit,
+        )
+        .all<StoriesRow>();
+
+      return results.results.map((row) => this.mapRowToStory(row));
+    } catch (error) {
+      logger.error("Error getting stories for content processing", { error });
+      return [];
+    }
+  }
+
+  /**
+   * Get stories for summary generation in priority order
+   *
+   * @param limit Maximum number of stories to return
+   * @returns Array of stories
+   */
+  async getStoriesForSummaryGeneration(limit = 10): Promise<ProcessedStory[]> {
+    try {
+      const MAX_RETRIES =
+        ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
+
+      // Get retry stories first (with retry count limit), then extracted stories
+      const results = await this.db
+        .prepare(
+          `
+        SELECT * FROM stories 
+        WHERE (status = ? AND retry_count < ?) OR status = ?
+        ORDER BY 
+          CASE 
+            WHEN status = ? THEN 0 -- RETRY_SUMMARIZE gets priority
+            ELSE 1                 -- EXTRACTED comes second
+          END,
+          retry_count ASC,         -- Lower retry count first
+          score DESC               -- Higher score stories first
+        LIMIT ?
+      `,
+        )
+        .bind(
+          ProcessingStatus.RETRY_SUMMARIZE,
+          MAX_RETRIES,
+          ProcessingStatus.EXTRACTED,
+          ProcessingStatus.RETRY_SUMMARIZE,
+          limit,
+        )
+        .all<StoriesRow>();
+
+      return results.results.map((row) => this.mapRowToStory(row));
+    } catch (error) {
+      logger.error("Error getting stories for summary generation", { error });
+      return [];
+    }
+  }
+
+  /**
    * Convert a database row to a ProcessedStory object
    */
   private mapRowToStory(row: StoriesRow): ProcessedStory {
@@ -415,6 +600,7 @@ export class StoryRepository {
       processedAt: row.processed_at,
       updatedAt: row.updated_at,
       error: row.error || undefined,
+      retryCount: row.retry_count || 0,
     };
   }
 }
@@ -435,4 +621,5 @@ interface StoriesRow {
   processed_at: string;
   updated_at: string;
   error: string | null;
+  retry_count: number | null;
 }

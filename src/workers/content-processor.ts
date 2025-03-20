@@ -40,15 +40,27 @@ export async function contentProcessorHandler(
       concurrencyLimit,
     });
 
-    // Get stories that need processing
-    const stories = await storyRepo.getStoriesByStatus(
-      ProcessingStatus.PENDING,
-      batchSize,
-    );
-    logger.info("Found stories to process", { count: stories.length });
+    // Get stories to process in priority order (retries first, then new)
+    const stories = await storyRepo.getStoriesForContentProcessing(batchSize);
+
+    // Count retries vs pending stories for logging
+    const retryCount = stories.filter(
+      (s) => s.status === ProcessingStatus.RETRY_EXTRACT,
+    ).length;
+    const pendingCount = stories.length - retryCount;
+
+    logger.info("Found stories to process", {
+      count: stories.length,
+      pending: pendingCount,
+      retry: retryCount,
+    });
 
     // Process stories with controlled concurrency
-    const { successCount, failureCount } = await processStoriesWithConcurrency(
+    const {
+      successCount,
+      failureCount,
+      retryCount: newRetryCount,
+    } = await processStoriesWithConcurrency(
       stories,
       concurrencyLimit,
       contentExtractor,
@@ -59,6 +71,7 @@ export async function contentProcessorHandler(
     logger.info("Content processor completed", {
       success: successCount,
       failure: failureCount,
+      retry: newRetryCount,
       total: stories.length,
     });
 
@@ -67,6 +80,7 @@ export async function contentProcessorHandler(
         success: true,
         processed: successCount,
         failed: failureCount,
+        retried: newRetryCount,
         total: stories.length,
       }),
       {
@@ -113,6 +127,7 @@ async function processStoriesWithConcurrency(
 ) {
   let successCount = 0;
   let failureCount = 0;
+  let retryCount = 0;
 
   // Process stories in batches to control concurrency
   for (let i = 0; i < stories.length; i += concurrencyLimit) {
@@ -133,15 +148,21 @@ async function processStoriesWithConcurrency(
 
     // Process the results
     for (const result of batchResults) {
-      if (result.status === "fulfilled" && result.value.success) {
-        successCount++;
+      if (result.status === "fulfilled") {
+        if (result.value.success) {
+          successCount++;
+        } else if (result.value.retry) {
+          retryCount++;
+        } else {
+          failureCount++;
+        }
       } else {
         failureCount++;
       }
     }
   }
 
-  return { successCount, failureCount };
+  return { successCount, failureCount, retryCount };
 }
 
 /**
@@ -155,6 +176,11 @@ async function processStoriesWithConcurrency(
  */
 async function processStory(story, contentExtractor, storyRepo, contentRepo) {
   try {
+    // Get current retry count if any
+    const retryCount = story.retryCount || 0;
+    const MAX_RETRIES =
+      ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
+
     // Update status to extracting
     await storyRepo.updateStatus(story.id, ProcessingStatus.EXTRACTING);
 
@@ -166,7 +192,7 @@ async function processStory(story, contentExtractor, storyRepo, contentRepo) {
         ProcessingStatus.FAILED,
         "No URL provided",
       );
-      return { success: false };
+      return { success: false, retry: false };
     }
 
     // Extract content
@@ -176,13 +202,26 @@ async function processStory(story, contentExtractor, storyRepo, contentRepo) {
       logger.warn("Failed to extract content", {
         storyId: story.id,
         url: story.url,
+        retryCount,
       });
-      await storyRepo.updateStatus(
-        story.id,
-        ProcessingStatus.FAILED,
-        "Failed to extract content",
-      );
-      return { success: false };
+
+      // Check if we should retry
+      if (retryCount < MAX_RETRIES) {
+        await storyRepo.markForExtractRetry(
+          story.id,
+          retryCount,
+          "Failed to extract content - will retry",
+        );
+        return { success: false, retry: true };
+      } else {
+        // Max retries reached, mark as failed
+        await storyRepo.updateStatus(
+          story.id,
+          ProcessingStatus.FAILED,
+          `Failed to extract content after ${MAX_RETRIES} retries`,
+        );
+        return { success: false, retry: false };
+      }
     }
 
     // Save content to R2
@@ -190,12 +229,24 @@ async function processStory(story, contentExtractor, storyRepo, contentRepo) {
 
     if (!contentId) {
       logger.error("Failed to save content to R2", { storyId: story.id });
-      await storyRepo.updateStatus(
-        story.id,
-        ProcessingStatus.FAILED,
-        "Failed to save content",
-      );
-      return { success: false };
+
+      // Check if we should retry
+      if (retryCount < MAX_RETRIES) {
+        await storyRepo.markForExtractRetry(
+          story.id,
+          retryCount,
+          "Failed to save content - will retry",
+        );
+        return { success: false, retry: true };
+      } else {
+        // Max retries reached, mark as failed
+        await storyRepo.updateStatus(
+          story.id,
+          ProcessingStatus.FAILED,
+          `Failed to save content after ${MAX_RETRIES} retries`,
+        );
+        return { success: false, retry: false };
+      }
     }
 
     // Update story with content ID and status
@@ -206,19 +257,34 @@ async function processStory(story, contentExtractor, storyRepo, contentRepo) {
       storyId: story.id,
       contentId,
       wordCount: content.wordCount,
+      retryAttempt: retryCount > 0 ? retryCount : undefined,
     });
 
-    return { success: true };
+    return { success: true, retry: false };
   } catch (error) {
     logger.error("Error processing story content", {
       error,
       storyId: story.id,
+      retryCount: story.retryCount || 0,
     });
-    await storyRepo.updateStatus(
-      story.id,
-      ProcessingStatus.FAILED,
-      `Error: ${error.message}`,
-    );
-    return { success: false };
+
+    const retryCount = story.retryCount || 0;
+
+    // Check if we should retry
+    if (retryCount < MAX_RETRIES) {
+      await storyRepo.markForExtractRetry(
+        story.id,
+        retryCount,
+        `Error: ${error.message} - will retry`,
+      );
+      return { success: false, retry: true };
+    } else {
+      await storyRepo.updateStatus(
+        story.id,
+        ProcessingStatus.FAILED,
+        `Error: ${error.message} - max retries reached`,
+      );
+      return { success: false, retry: false };
+    }
   }
 }

@@ -42,19 +42,33 @@ export async function summaryGeneratorHandler(
       maxTokens: ENV.get("SUMMARIZATION_MAX_TOKENS"),
     });
 
-    // Get stories that need summarization
-    const stories = await storyRepo.getStoriesByStatus(
-      ProcessingStatus.EXTRACTED,
-      batchSize,
-    );
-    logger.info("Found stories to summarize", { count: stories.length });
+    // Get stories for summarization in priority order (retries first, then new)
+    const stories = await storyRepo.getStoriesForSummaryGeneration(batchSize);
+
+    // Count retries vs extracted stories for logging
+    const retryCount = stories.filter(
+      (s) => s.status === ProcessingStatus.RETRY_SUMMARIZE,
+    ).length;
+    const extractedCount = stories.length - retryCount;
+
+    logger.info("Found stories to summarize", {
+      count: stories.length,
+      extracted: extractedCount,
+      retry: retryCount,
+    });
 
     // Process each story
     let successCount = 0;
     let failureCount = 0;
+    let newRetryCount = 0;
 
     for (const story of stories) {
       try {
+        // Get current retry count if any
+        const currentRetryCount = story.retryCount || 0;
+        const MAX_RETRIES =
+          ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
+
         // Update status to summarizing
         await storyRepo.updateStatus(story.id, ProcessingStatus.SUMMARIZING);
 
@@ -80,58 +94,100 @@ export async function summaryGeneratorHandler(
             storyId: story.id,
             contentId: story.contentId,
           });
-          await storyRepo.updateStatus(
-            story.id,
-            ProcessingStatus.FAILED,
-            "Failed to retrieve content",
-          );
-          failureCount++;
+
+          // Check if we should retry
+          if (currentRetryCount < MAX_RETRIES) {
+            await storyRepo.markForSummarizeRetry(
+              story.id,
+              currentRetryCount,
+              "Failed to retrieve content - will retry",
+            );
+            newRetryCount++;
+          } else {
+            await storyRepo.updateStatus(
+              story.id,
+              ProcessingStatus.FAILED,
+              `Failed to retrieve content after ${MAX_RETRIES} retries`,
+            );
+            failureCount++;
+          }
           continue;
         }
 
         // Some contents may have missing titles, use the story title as fallback
         const title = content.title || story.title;
 
-        // Generate summary
-        const summary = await summarizer.summarize(
-          story.id,
-          title,
-          content.content,
-          content.wordCount,
-        );
-
-        // Save summary to R2
-        const summaryId = await contentRepo.saveSummary(story.id, summary);
-
-        if (!summaryId) {
-          logger.error("Failed to save summary to R2", { storyId: story.id });
-          await storyRepo.updateStatus(
+        try {
+          // Generate summary
+          const summary = await summarizer.summarize(
             story.id,
-            ProcessingStatus.FAILED,
-            "Failed to save summary",
+            title,
+            content.content,
+            content.wordCount,
           );
-          failureCount++;
-          continue;
+
+          // Save summary to R2
+          const summaryId = await contentRepo.saveSummary(story.id, summary);
+
+          if (!summaryId) {
+            logger.error("Failed to save summary to R2", { storyId: story.id });
+
+            // Check if we should retry
+            if (currentRetryCount < MAX_RETRIES) {
+              await storyRepo.markForSummarizeRetry(
+                story.id,
+                currentRetryCount,
+                "Failed to save summary - will retry",
+              );
+              newRetryCount++;
+            } else {
+              await storyRepo.updateStatus(
+                story.id,
+                ProcessingStatus.FAILED,
+                `Failed to save summary after ${MAX_RETRIES} retries`,
+              );
+              failureCount++;
+            }
+            continue;
+          }
+
+          // Update story with summary ID and status
+          await storyRepo.updateSummaryId(story.id, summaryId);
+          await storyRepo.updateStatus(story.id, ProcessingStatus.COMPLETED);
+
+          logger.info("Successfully generated summary", {
+            storyId: story.id,
+            summaryId,
+            summaryLength: summary.summary.length,
+            retryAttempt: currentRetryCount > 0 ? currentRetryCount : undefined,
+          });
+
+          successCount++;
+        } catch (error) {
+          logger.error("Error generating summary", {
+            error,
+            storyId: story.id,
+          });
+
+          // Check if we should retry
+          if (currentRetryCount < MAX_RETRIES) {
+            await storyRepo.markForSummarizeRetry(
+              story.id,
+              currentRetryCount,
+              `Error: ${error.message} - will retry`,
+            );
+            newRetryCount++;
+          } else {
+            await storyRepo.updateStatus(
+              story.id,
+              ProcessingStatus.FAILED,
+              `Error: ${error.message} - max retries reached`,
+            );
+            failureCount++;
+          }
         }
-
-        // Update story with summary ID and status
-        await storyRepo.updateSummaryId(story.id, summaryId);
-        await storyRepo.updateStatus(story.id, ProcessingStatus.COMPLETED);
-
-        logger.info("Successfully generated summary", {
-          storyId: story.id,
-          summaryId,
-          summaryLength: summary.summary.length,
-        });
-
-        successCount++;
       } catch (error) {
-        logger.error("Error generating summary", { error, storyId: story.id });
-        await storyRepo.updateStatus(
-          story.id,
-          ProcessingStatus.FAILED,
-          `Error: ${error.message}`,
-        );
+        logger.error("Error processing story", { error, storyId: story.id });
         failureCount++;
       }
     }
@@ -139,6 +195,7 @@ export async function summaryGeneratorHandler(
     logger.info("Summary generator completed", {
       success: successCount,
       failure: failureCount,
+      retry: newRetryCount,
       total: stories.length,
     });
 
@@ -147,6 +204,7 @@ export async function summaryGeneratorHandler(
         success: true,
         summarized: successCount,
         failed: failureCount,
+        retried: newRetryCount,
         total: stories.length,
       }),
       {

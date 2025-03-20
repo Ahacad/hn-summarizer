@@ -53,6 +53,8 @@ export enum ProcessingStatus {
   COMPLETED = "completed",
   SENT = "sent",
   FAILED = "failed",
+  RETRY_EXTRACT = "retry_extract",
+  RETRY_SUMMARIZE = "retry_summarize",
 }
 
 /**
@@ -94,4 +96,7 @@ export interface ProcessedStory {
 
   /** Error message if processing failed */
   error?: string;
+
+  /** Number of retry attempts */
+  retryCount?: number;
 }
