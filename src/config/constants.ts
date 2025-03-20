@@ -135,13 +135,19 @@ export const ENV_DEFAULTS = {
   CONTENT_PROCESSOR_BATCH_SIZE: 10,
 
   /** Default concurrency for content processing */
-  CONTENT_PROCESSOR_CONCURRENCY: 5,
+  CONTENT_PROCESSOR_CONCURRENCY: 1,
 
   /** Default maximum stories per summary generation run */
   SUMMARY_GENERATOR_BATCH_SIZE: 5,
 
+  /** Default concurrency for summary generation */
+  SUMMARY_GENERATOR_CONCURRENCY: 3,
+
   /** Default maximum stories per notification run */
   NOTIFICATION_SENDER_BATCH_SIZE: 5,
+
+  /** Default concurrency for sending notifications */
+  NOTIFICATION_SENDER_CONCURRENCY: 1,
 
   /** Default maximum tokens for summarization */
   SUMMARIZATION_MAX_TOKENS: 2048,

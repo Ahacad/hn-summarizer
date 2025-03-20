@@ -33,10 +33,9 @@ export async function summaryGeneratorHandler(
     const storyRepo = new StoryRepository();
     const contentRepo = new ContentRepository();
 
-    // Get batch size from environment (now guaranteed to be a number)
+    // Get batch size and concurrency from environment (now guaranteed to be a number)
     const batchSize = ENV.get("SUMMARY_GENERATOR_BATCH_SIZE");
-    // Use a reasonable concurrency limit (similar to content processor)
-    const concurrencyLimit = ENV.get("CONTENT_PROCESSOR_CONCURRENCY");
+    const concurrencyLimit = ENV.get("SUMMARY_GENERATOR_CONCURRENCY");
 
     logger.debug("Summary generator configuration", {
       batchSize,

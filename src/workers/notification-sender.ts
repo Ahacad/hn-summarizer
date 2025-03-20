@@ -35,7 +35,7 @@ export async function notificationSenderHandler(
 
     // Get batch size and concurrency from environment (now guaranteed to be numbers)
     const batchSize = ENV.get("NOTIFICATION_SENDER_BATCH_SIZE");
-    const concurrencyLimit = ENV.get("CONTENT_PROCESSOR_CONCURRENCY");
+    const concurrencyLimit = ENV.get("NOTIFICATION_SENDER_CONCURRENCY");
 
     logger.debug("Notification sender configuration", {
       batchSize,

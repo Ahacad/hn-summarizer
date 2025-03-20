@@ -28,7 +28,9 @@ export interface EnvBindings {
   CONTENT_PROCESSOR_BATCH_SIZE: number;
   CONTENT_PROCESSOR_CONCURRENCY: number;
   SUMMARY_GENERATOR_BATCH_SIZE: number;
+  SUMMARY_GENERATOR_CONCURRENCY: number; // Separate concurrency for summary generation
   NOTIFICATION_SENDER_BATCH_SIZE: number;
+  NOTIFICATION_SENDER_CONCURRENCY: number; // Separate concurrency for notifications
   SUMMARIZATION_MAX_TOKENS: number;
   MAX_RETRY_ATTEMPTS: number;
 }
@@ -78,9 +80,17 @@ export class ENV {
         env.SUMMARY_GENERATOR_BATCH_SIZE,
         ENV_DEFAULTS.SUMMARY_GENERATOR_BATCH_SIZE,
       ),
+      SUMMARY_GENERATOR_CONCURRENCY: this.parseNumericEnv(
+        env.SUMMARY_GENERATOR_CONCURRENCY,
+        ENV_DEFAULTS.SUMMARY_GENERATOR_CONCURRENCY,
+      ),
       NOTIFICATION_SENDER_BATCH_SIZE: this.parseNumericEnv(
         env.NOTIFICATION_SENDER_BATCH_SIZE,
         ENV_DEFAULTS.NOTIFICATION_SENDER_BATCH_SIZE,
+      ),
+      NOTIFICATION_SENDER_CONCURRENCY: this.parseNumericEnv(
+        env.NOTIFICATION_SENDER_CONCURRENCY,
+        ENV_DEFAULTS.NOTIFICATION_SENDER_CONCURRENCY,
       ),
       SUMMARIZATION_MAX_TOKENS: this.parseNumericEnv(
         env.SUMMARIZATION_MAX_TOKENS,
@@ -100,13 +110,25 @@ export class ENV {
     // Log the initialized numeric configuration values
     logger.debug("Environment initialized with numeric values", {
       MAX_STORIES_PER_FETCH: this.instance.MAX_STORIES_PER_FETCH,
+
       CONTENT_PROCESSOR_BATCH_SIZE: this.instance.CONTENT_PROCESSOR_BATCH_SIZE,
+
       CONTENT_PROCESSOR_CONCURRENCY:
         this.instance.CONTENT_PROCESSOR_CONCURRENCY,
+
       SUMMARY_GENERATOR_BATCH_SIZE: this.instance.SUMMARY_GENERATOR_BATCH_SIZE,
+
+      SUMMARY_GENERATOR_CONCURRENCY:
+        this.instance.SUMMARY_GENERATOR_CONCURRENCY,
+
       NOTIFICATION_SENDER_BATCH_SIZE:
         this.instance.NOTIFICATION_SENDER_BATCH_SIZE,
+
+      NOTIFICATION_SENDER_CONCURRENCY:
+        this.instance.NOTIFICATION_SENDER_CONCURRENCY,
+
       SUMMARIZATION_MAX_TOKENS: this.instance.SUMMARIZATION_MAX_TOKENS,
+
       MAX_RETRY_ATTEMPTS: this.instance.MAX_RETRY_ATTEMPTS,
     });
   }
