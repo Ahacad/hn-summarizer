@@ -2,6 +2,39 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.3.0](https://github.com/Ahacad/hn-summarizer/compare/v0.2.5...v0.3.0) (2025-03-20)
+
+
+### Features
+
+* add new state retries for retrying API calls ([d6b2981](https://github.com/Ahacad/hn-summarizer/commit/d6b2981f2384be25c506c3f49f68b7dbe7caaf11))
+* implement stories & summaries apis ([a6fa214](https://github.com/Ahacad/hn-summarizer/commit/a6fa21450085f401d8d5e0f25561a5635ab3b8f7))
+
+
+### Bug Fixes
+
+* **env:** fix numeric problem from environmental variables ([e0f7572](https://github.com/Ahacad/hn-summarizer/commit/e0f7572f12a165224ad05a86f32ec1be4f5e25bd))
+* new SENT status for all sent stories ([c6e3cb0](https://github.com/Ahacad/hn-summarizer/commit/c6e3cb0f0545e4f004c0bb830138448be4bb2755))
+* **wrangler.example:** fix example wrangler cron jobs ([ea2deb1](https://github.com/Ahacad/hn-summarizer/commit/ea2deb1158a99571a0c891690cd1d85811367a64))
+
+
+### Documentation
+
+* **readme:** fix license ([8715846](https://github.com/Ahacad/hn-summarizer/commit/8715846bdff332030c744a8a3558b2a398ff6020))
+
+
+### Chores
+
+* **constants.ts:** change cron intervals for all workers ([0ead7f6](https://github.com/Ahacad/hn-summarizer/commit/0ead7f6a4030c8b4883bc7d5d2d768ef849d58cf))
+* **constants.ts:** update cron job for generating summaries ([7d953ff](https://github.com/Ahacad/hn-summarizer/commit/7d953ff11862bf453d0624a23038ddf22f39329c))
+
+
+### Code Refactoring
+
+* individual concurrency constants for different workers ([5ffe1c3](https://github.com/Ahacad/hn-summarizer/commit/5ffe1c390b23f6fd5213542c0ddb2db98f5761a6))
+* update database schema for notifications ([e6c309b](https://github.com/Ahacad/hn-summarizer/commit/e6c309bf92bc514a66d885d61ec713b54d1a07fc))
+* use environmental variables rather than hardcoded numbers for item numbers now ([4a2c291](https://github.com/Ahacad/hn-summarizer/commit/4a2c291ca427fcc53cf9fa74267ef7094207520f))
+
 ### [0.2.5](https://github.com/Ahacad/hn-summarizer/compare/v0.2.4...v0.2.5) (2025-03-20)
 
 
