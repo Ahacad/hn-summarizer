@@ -103,8 +103,8 @@ export const CRON = {
   /** Process content every 15 minutes */
   PROCESS_CONTENT: "*/15 * * * *",
 
-  /** Generate summaries every 30 minutes */
-  GENERATE_SUMMARIES: "*/30 * * * *",
+  /** Generate summaries every 10 minutes */
+  GENERATE_SUMMARIES: "*/10 * * * *",
 
   /** Send notifications every 30 minutes */
   SEND_NOTIFICATIONS: "*/30 * * * *",
