@@ -26,8 +26,13 @@ export async function storyFetcherHandler(
     const hnClient = new HackerNewsClient();
     const storyRepo = new StoryRepository();
 
-    // Get the maximum number of stories to fetch
-    const maxStories = ENV.get("MAX_STORIES_PER_FETCH") || 30;
+    // Get the maximum number of stories to fetch - now guaranteed to be a number
+    const maxStories = ENV.get("MAX_STORIES_PER_FETCH");
+
+    logger.debug("Story fetcher configuration", {
+      maxStories,
+      maxStoriesType: typeof maxStories,
+    });
 
     // Get top stories from HackerNews
     const storyIds = await hnClient.getTopStories(maxStories);

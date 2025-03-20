@@ -11,9 +11,7 @@ import { ContentRepository } from "../storage/r2/content-repository";
 import { ProcessingStatus } from "../types/story";
 import { logger } from "../utils/logger";
 import { ENV } from "../config/environment";
-
-// Default concurrency limit
-const DEFAULT_CONCURRENCY = 5;
+import { PROCESSING } from "../config/constants";
 
 /**
  * Handler for the content processor worker
@@ -38,6 +36,8 @@ export async function contentProcessorHandler(
     logger.debug("Content processor configuration", {
       batchSize,
       concurrencyLimit,
+      batchSizeType: typeof batchSize,
+      concurrencyLimitType: typeof concurrencyLimit,
     });
 
     // Get stories to process in priority order (retries first, then new)
@@ -129,13 +129,23 @@ async function processStoriesWithConcurrency(
   let failureCount = 0;
   let retryCount = 0;
 
+  // Ensure concurrencyLimit is a valid number
+  const limit = Math.max(1, concurrencyLimit);
+
+  logger.debug("Processing with controlled concurrency", {
+    totalStories: stories.length,
+    concurrencyLimit: limit,
+  });
+
   // Process stories in batches to control concurrency
-  for (let i = 0; i < stories.length; i += concurrencyLimit) {
-    const batch = stories.slice(i, i + concurrencyLimit);
+  for (let i = 0; i < stories.length; i += limit) {
+    const batch = stories.slice(i, i + limit);
 
     logger.debug(`Processing batch of ${batch.length} stories`, {
-      batchNumber: Math.floor(i / concurrencyLimit) + 1,
-      totalBatches: Math.ceil(stories.length / concurrencyLimit),
+      batchNumber: Math.floor(i / limit) + 1,
+      totalBatches: Math.ceil(stories.length / limit),
+      startIndex: i,
+      endIndex: Math.min(i + limit - 1, stories.length - 1),
     });
 
     // Create processing promises for this batch
@@ -143,7 +153,7 @@ async function processStoriesWithConcurrency(
       processStory(story, contentExtractor, storyRepo, contentRepo),
     );
 
-    // Wait for the current batch to complete
+    // Wait for this entire batch to complete before moving to the next batch
     const batchResults = await Promise.allSettled(batchPromises);
 
     // Process the results
@@ -157,9 +167,29 @@ async function processStoriesWithConcurrency(
           failureCount++;
         }
       } else {
+        logger.error("Error in batch processing promise", {
+          error: result.reason,
+        });
         failureCount++;
       }
     }
+
+    logger.debug(
+      `Completed batch ${Math.floor(i / limit) + 1}/${Math.ceil(stories.length / limit)}`,
+      {
+        batchSuccesses: batchResults.filter(
+          (r) => r.status === "fulfilled" && r.value.success,
+        ).length,
+        batchFailures: batchResults.filter(
+          (r) =>
+            r.status === "rejected" ||
+            (r.status === "fulfilled" && !r.value.success && !r.value.retry),
+        ).length,
+        batchRetries: batchResults.filter(
+          (r) => r.status === "fulfilled" && r.value.retry,
+        ).length,
+      },
+    );
   }
 
   return { successCount, failureCount, retryCount };
@@ -269,6 +299,8 @@ async function processStory(story, contentExtractor, storyRepo, contentRepo) {
     });
 
     const retryCount = story.retryCount || 0;
+    const MAX_RETRIES =
+      ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
 
     // Check if we should retry
     if (retryCount < MAX_RETRIES) {
