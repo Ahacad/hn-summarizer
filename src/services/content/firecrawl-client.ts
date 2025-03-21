@@ -16,14 +16,20 @@ import { ENV } from "../../config/environment";
 export class FirecrawlClient {
   private apiUrl: string;
   private timeout: number;
+  private apiKey: string | null;
 
   /**
    * Create a new Firecrawl API client
    *
    * @param apiUrl Firecrawl API URL (required)
    * @param timeout Request timeout in milliseconds
+   * @param apiKey API key (optional for self-hosted instances)
    */
-  constructor(apiUrl?: string, timeout = API.CONTENT.REQUEST_TIMEOUT) {
+  constructor(
+    apiUrl?: string,
+    timeout = API.CONTENT.REQUEST_TIMEOUT,
+    apiKey?: string,
+  ) {
     // Get API URL from environment if not provided (required)
     this.apiUrl = apiUrl || ENV.get("FIRECRAWL_API_URL");
 
@@ -32,8 +38,13 @@ export class FirecrawlClient {
     }
 
     this.timeout = timeout;
+    this.apiKey = apiKey || null; // Store API key if provided
 
-    logger.debug("Initialized Firecrawl API client", { apiUrl: this.apiUrl });
+    logger.debug("Initialized Firecrawl API client", {
+      apiUrl: this.apiUrl,
+      // Don't log the actual API key
+      hasApiKey: !!this.apiKey,
+    });
   }
 
   /**
@@ -50,12 +61,21 @@ export class FirecrawlClient {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
+      // Prepare request headers
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Add API key if available
+      if (this.apiKey) {
+        headers["Authorization"] = `Bearer ${this.apiKey}`;
+      }
+
       // Prepare API request
+      // Note: No need to add /v1 as the proxy will handle that
       const response = await fetch(`${this.apiUrl}/scrape`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify({
           url,
           formats: ["markdown", "html"],
@@ -160,6 +180,16 @@ export class FirecrawlClient {
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
+      // Prepare request headers
+      const headers: Record<string, string> = {
+        "Content-Type": "application/json",
+      };
+
+      // Add API key if available
+      if (this.apiKey) {
+        headers["Authorization"] = `Bearer ${this.apiKey}`;
+      }
+
       // Prepare the request body
       const requestBody: any = {
         urls: [url],
@@ -171,11 +201,10 @@ export class FirecrawlClient {
       }
 
       // Make the API request
+      // Note: No need to add /v1 as the proxy will handle that
       const response = await fetch(`${this.apiUrl}/extract`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers,
         body: JSON.stringify(requestBody),
         signal: controller.signal,
       });
@@ -250,6 +279,7 @@ export class FirecrawlClient {
         await new Promise((resolve) => setTimeout(resolve, delay));
 
         // Check job status
+        // Note: No need to add /v1 as the proxy will handle that
         const response = await fetch(`${this.apiUrl}/extract/${jobId}`, {
           headers: {
             "Content-Type": "application/json",
