@@ -4,19 +4,20 @@ main = "src/index.ts"
 compatibility_date = "2024-09-23"
 compatibility_flags = ["nodejs_compat"]
 
+# Set the Workers runtime to nodejs
+
 workers_dev = true
 
-# D1 Database binding - replace with your own database ID
 [[ d1_databases ]]
 binding = "HN_SUMMARIZER_DB"
 database_name = "hn-summarizer"
-database_id = "<YOUR_DATABASE_ID>"
+database_id = "<YOUR_DATABASE_ID>"  # Replace with your actual database ID# D1 Database binding
 
 # R2 bucket binding
 [[r2_buckets]]
 binding = "CONTENT_BUCKET"
 bucket_name = "hn-summarizer-content"
-preview_bucket_name = "hn-summarizer-content-dev"
+preview_bucket_name = "hn-summarizer-content-dev" # For local development
 
 # Environment variables
 [vars]
@@ -33,7 +34,7 @@ SUMMARIZATION_MAX_TOKENS = "8192"
 MAX_RETRY_ATTEMPTS = "5"
 
 # Production environment variables
-[env.production]
+[env.production.vars]
 ENVIRONMENT = "production"
 LOG_LEVEL = "info"
 MAX_STORIES_PER_FETCH = "50"
@@ -46,6 +47,16 @@ NOTIFICATION_SENDER_CONCURRENCY = "3"
 SUMMARIZATION_MAX_TOKENS = "8192"
 MAX_RETRY_ATTEMPTS = "5"
 
+# D1 Database binding for production - duplicate the binding with the same values
+[[ env.production.d1_databases ]]
+binding = "HN_SUMMARIZER_DB"
+database_name = "hn-summarizer"
+database_id = "<YOUR_DATABASE_ID>"  # Replace with your actual database ID# D1 Database binding
+# R2 bucket binding for production
+[[env.production.r2_buckets]]
+binding = "CONTENT_BUCKET"
+bucket_name = "hn-summarizer-content"
+
 # Secrets (to be set using 'wrangler secret put'):
 # - GOOGLE_AI_API_KEY
 # - TELEGRAM_BOT_TOKEN (optional)
@@ -53,6 +64,7 @@ MAX_RETRY_ATTEMPTS = "5"
 # - FIRECRAWL_API_URL
 
 # Cron triggers
+# These values should match those in src/config/constants.ts
 [triggers]
 crons = [
     # Run the orchestrator every 5 minutes to check all tasks
