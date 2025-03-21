@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.4.0](https://github.com/Ahacad/hn-summarizer/compare/v0.3.0...v0.4.0) (2025-03-21)
+
+
+### CI
+
+* fix scripts to deploy to cloudflare ([e3bce7c](https://github.com/Ahacad/hn-summarizer/commit/e3bce7cb11e21e9d3197dbfa275c2035da4ab3b5))
+
+
+### Chores
+
+* **firecrawl:** update for using proxy server now ([a336af9](https://github.com/Ahacad/hn-summarizer/commit/a336af9549a99ad5dca75f2024e2d9a3f5c09b36))
+* update wrangler for production environment ([c1a7495](https://github.com/Ahacad/hn-summarizer/commit/c1a7495cb103dc4ef14cf286655ca243f3362391))
+
 ## [0.3.0](https://github.com/Ahacad/hn-summarizer/compare/v0.2.5...v0.3.0) (2025-03-20)
 
 
