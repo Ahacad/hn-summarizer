@@ -108,8 +108,8 @@ export const CRON = {
   /** Fetch new stories every 30 minutes */
   FETCH_STORIES: "*/30 * * * *",
 
-  /** Process content every 15 minutes */
-  PROCESS_CONTENT: "*/15 * * * *",
+  /** Process content every 60 minutes */
+  PROCESS_CONTENT: "*/60 * * * *",
 
   /** Generate summaries every 10 minutes */
   GENERATE_SUMMARIES: "*/10 * * * *",
