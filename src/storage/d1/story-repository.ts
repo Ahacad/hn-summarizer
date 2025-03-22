@@ -10,12 +10,14 @@ import { ENV } from "../../config/environment";
 import { logger } from "../../utils/logger";
 import { HNStory, HNStoryID } from "../../types/hackernews";
 import { ProcessedStory, ProcessingStatus } from "../../types/story";
+import { PROCESSING } from "../../config/constants";
 
 /**
  * Repository for managing story metadata
  */
 export class StoryRepository {
-  private db: D1Database;
+  // Database instance (exposed for direct queries by admin APIs)
+  public db: D1Database;
 
   /**
    * Create a new story repository
@@ -456,6 +458,139 @@ export class StoryRepository {
    * @param error Optional error message
    * @returns Whether the operation was successful
    */
+  /**
+   * Get the last run time for a worker
+   *
+   * @param workerName Name of the worker
+   * @returns ISO timestamp of the last run or null if not found
+   */
+  async getLastWorkerRunTime(workerName: string): Promise<string | null> {
+    try {
+      const result = await this.db
+        .prepare(
+          `
+        SELECT last_run_time FROM worker_run_times WHERE worker_name = ?
+      `,
+        )
+        .bind(workerName)
+        .first<{ last_run_time: string }>();
+
+      return result ? result.last_run_time : null;
+    } catch (error) {
+      logger.error("Error getting worker last run time", { error, workerName });
+      return null;
+    }
+  }
+
+  /**
+   * Update the last run time for a worker
+   *
+   * @param workerName Name of the worker
+   * @param timestamp ISO timestamp of the run time (default: current time)
+   * @returns Whether the operation was successful
+   */
+  async updateWorkerRunTime(
+    workerName: string,
+    timestamp?: string,
+  ): Promise<boolean> {
+    try {
+      const now = timestamp || new Date().toISOString();
+
+      // Check if worker entry exists
+      const exists = await this.db
+        .prepare(
+          `
+        SELECT 1 FROM worker_run_times WHERE worker_name = ?
+      `,
+        )
+        .bind(workerName)
+        .first<{ 1: number }>();
+
+      let result;
+      if (exists) {
+        // Update existing entry
+        result = await this.db
+          .prepare(
+            `
+          UPDATE worker_run_times 
+          SET last_run_time = ?, updated_at = ?
+          WHERE worker_name = ?
+        `,
+          )
+          .bind(now, now, workerName)
+          .run();
+      } else {
+        // Insert new entry
+        result = await this.db
+          .prepare(
+            `
+          INSERT INTO worker_run_times (worker_name, last_run_time, updated_at)
+          VALUES (?, ?, ?)
+        `,
+          )
+          .bind(workerName, now, now)
+          .run();
+      }
+
+      logger.debug("Updated worker run time", {
+        workerName,
+        timestamp: now,
+        success: result.success,
+      });
+
+      return result.success;
+    } catch (error) {
+      logger.error("Error updating worker run time", { error, workerName });
+      return false;
+    }
+  }
+
+  /**
+   * Check if enough time has passed since the last worker run
+   *
+   * @param workerName Name of the worker
+   * @param intervalMinutes Minimum interval in minutes between runs
+   * @returns Whether the worker should run
+   */
+  async shouldRunWorker(
+    workerName: string,
+    intervalMinutes: number,
+  ): Promise<boolean> {
+    try {
+      const lastRunTime = await this.getLastWorkerRunTime(workerName);
+
+      // If never run before, should run now
+      if (!lastRunTime) {
+        logger.debug("Worker has never run before", { workerName });
+        return true;
+      }
+
+      const now = new Date().getTime();
+      const lastRun = new Date(lastRunTime).getTime();
+      const intervalMs = intervalMinutes * 60 * 1000;
+      const timeSinceLastRun = now - lastRun;
+
+      const shouldRun = timeSinceLastRun >= intervalMs;
+
+      logger.debug("Checking if worker should run", {
+        workerName,
+        lastRunTime,
+        intervalMinutes,
+        timeSinceLastRun: Math.floor(timeSinceLastRun / 1000 / 60) + " minutes",
+        shouldRun,
+      });
+
+      return shouldRun;
+    } catch (error) {
+      logger.error("Error checking if worker should run", {
+        error,
+        workerName,
+      });
+      // In case of error, default to running to be safe
+      return true;
+    }
+  }
+
   async markForSummarizeRetry(
     id: HNStoryID,
     retryCount: number = 0,
@@ -603,6 +738,18 @@ export class StoryRepository {
       retryCount: row.retry_count || 0,
     };
   }
+}
+
+/**
+ * Database row type for stories table
+ */
+/**
+ * Database row type for worker_run_times table
+ */
+interface WorkerRunTimesRow {
+  worker_name: string;
+  last_run_time: string;
+  updated_at: string;
 }
 
 /**
