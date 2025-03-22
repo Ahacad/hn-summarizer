@@ -70,3 +70,7 @@ crons = [
     # Run the orchestrator every 5 minutes to check all tasks
     "*/5 * * * *",
 ]
+
+[logs]
+enabled = true
+level = "debug"
