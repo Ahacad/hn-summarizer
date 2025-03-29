@@ -60,6 +60,32 @@ router.add("GET", "/api/summaries", summariesHandler);
 router.add("GET", "/api/workers", workersHandler);
 router.add("POST", "/api/workers", workersHandler);
 
+// Add test endpoint for cron jobs
+router.add("GET", "/api/cron-test", async (request, env, ctx) => {
+  logger.info("Cron test endpoint called");
+  try {
+    const storyRepo = new StoryRepository();
+    await storyRepo.updateWorkerRunTime("cronTest");
+    return new Response("Cron test successful", {
+      status: 200,
+      headers: {
+        "Content-Type": "text/plain",
+      },
+    });
+  } catch (error) {
+    logger.error("Cron test failed", { error });
+    return new Response(
+      "Cron test failed: " + (error?.message || String(error)),
+      {
+        status: 500,
+        headers: {
+          "Content-Type": "text/plain",
+        },
+      },
+    );
+  }
+});
+
 // Define the fetch event handler for the worker
 export default {
   async fetch(
@@ -89,87 +115,165 @@ export default {
     ENV.init(env);
 
     try {
-      logger.info("Scheduled event triggered", { cron: event.cron });
+      // Enhanced logging to debug environment variables
+      logger.info("Scheduled event triggered", {
+        cron: event.cron,
+        envInitialized: !!env,
+        hasDbBinding: !!env.HN_SUMMARIZER_DB,
+        hasR2Binding: !!env.CONTENT_BUCKET,
+        googleApiKey: !!env.GOOGLE_AI_API_KEY,
+        firecrawlApiUrl: !!env.FIRECRAWL_API_URL,
+        environment: env.ENVIRONMENT,
+      });
 
-      // Create a dummy request for the handlers
-      const dummyRequest = new Request("https://dummy.com", { method: "GET" });
+      // Create a better dummy request for the handlers using the actual worker URL
+      const dummyRequest = new Request(
+        "https://hn-summarizer-production.rjiejin.workers.dev/internal-cron",
+        {
+          method: "GET",
+          headers: {
+            "X-Scheduled-Run": "true",
+            "User-Agent": "CloudflareWorker/ScheduledEvent",
+            Host: "hn-summarizer-production.rjiejin.workers.dev",
+          },
+        },
+      );
 
       // Initialize repository for worker run times
       const storyRepo = new StoryRepository();
 
+      // Validate database connection
+      if (!storyRepo.db) {
+        logger.error("Database binding is not available in scheduled event");
+        return; // Exit early if database isn't available
+      }
+
       // Track which workers ran
       const workersRun = [];
 
+      // First, run a simple test to verify basic functionality
+      try {
+        logger.info("Running cron test");
+        await storyRepo.updateWorkerRunTime("cronTest");
+        logger.info("Cron test successfully updated timestamp");
+      } catch (error) {
+        logger.error("Cron test failed - database operation issue", { error });
+      }
+
       // Check each worker against its interval using database tracking
       if (INTERVALS.FETCH_STORIES > 0) {
-        const shouldRun = await storyRepo.shouldRunWorker(
-          WORKERS.STORY_FETCHER,
-          INTERVALS.FETCH_STORIES,
-        );
-
-        if (shouldRun) {
-          logger.info("Running story fetcher");
-          await storyFetcherHandler(dummyRequest, env, ctx);
-          await storyRepo.updateWorkerRunTime(WORKERS.STORY_FETCHER);
-          workersRun.push(WORKERS.STORY_FETCHER);
-        } else {
-          logger.debug(
-            "Skipping story fetcher - not enough time elapsed since last run",
+        try {
+          const shouldRun = await storyRepo.shouldRunWorker(
+            WORKERS.STORY_FETCHER,
+            INTERVALS.FETCH_STORIES,
           );
+
+          if (shouldRun) {
+            logger.info("Running story fetcher");
+            try {
+              await storyFetcherHandler(dummyRequest, env, ctx);
+              await storyRepo.updateWorkerRunTime(WORKERS.STORY_FETCHER);
+              workersRun.push(WORKERS.STORY_FETCHER);
+            } catch (error) {
+              logger.error(`Error running ${WORKERS.STORY_FETCHER}`, { error });
+            }
+          } else {
+            logger.debug(
+              "Skipping story fetcher - not enough time elapsed since last run",
+            );
+          }
+        } catch (error) {
+          logger.error("Error checking if story fetcher should run", { error });
         }
       }
 
       if (INTERVALS.PROCESS_CONTENT > 0) {
-        const shouldRun = await storyRepo.shouldRunWorker(
-          WORKERS.CONTENT_PROCESSOR,
-          INTERVALS.PROCESS_CONTENT,
-        );
-
-        if (shouldRun) {
-          logger.info("Running content processor");
-          await contentProcessorHandler(dummyRequest, env, ctx);
-          await storyRepo.updateWorkerRunTime(WORKERS.CONTENT_PROCESSOR);
-          workersRun.push(WORKERS.CONTENT_PROCESSOR);
-        } else {
-          logger.debug(
-            "Skipping content processor - not enough time elapsed since last run",
+        try {
+          const shouldRun = await storyRepo.shouldRunWorker(
+            WORKERS.CONTENT_PROCESSOR,
+            INTERVALS.PROCESS_CONTENT,
           );
+
+          if (shouldRun) {
+            logger.info("Running content processor");
+            try {
+              await contentProcessorHandler(dummyRequest, env, ctx);
+              await storyRepo.updateWorkerRunTime(WORKERS.CONTENT_PROCESSOR);
+              workersRun.push(WORKERS.CONTENT_PROCESSOR);
+            } catch (error) {
+              logger.error(`Error running ${WORKERS.CONTENT_PROCESSOR}`, {
+                error,
+              });
+            }
+          } else {
+            logger.debug(
+              "Skipping content processor - not enough time elapsed since last run",
+            );
+          }
+        } catch (error) {
+          logger.error("Error checking if content processor should run", {
+            error,
+          });
         }
       }
 
       if (INTERVALS.GENERATE_SUMMARIES > 0) {
-        const shouldRun = await storyRepo.shouldRunWorker(
-          WORKERS.SUMMARY_GENERATOR,
-          INTERVALS.GENERATE_SUMMARIES,
-        );
-
-        if (shouldRun) {
-          logger.info("Running summary generator");
-          await summaryGeneratorHandler(dummyRequest, env, ctx);
-          await storyRepo.updateWorkerRunTime(WORKERS.SUMMARY_GENERATOR);
-          workersRun.push(WORKERS.SUMMARY_GENERATOR);
-        } else {
-          logger.debug(
-            "Skipping summary generator - not enough time elapsed since last run",
+        try {
+          const shouldRun = await storyRepo.shouldRunWorker(
+            WORKERS.SUMMARY_GENERATOR,
+            INTERVALS.GENERATE_SUMMARIES,
           );
+
+          if (shouldRun) {
+            logger.info("Running summary generator");
+            try {
+              await summaryGeneratorHandler(dummyRequest, env, ctx);
+              await storyRepo.updateWorkerRunTime(WORKERS.SUMMARY_GENERATOR);
+              workersRun.push(WORKERS.SUMMARY_GENERATOR);
+            } catch (error) {
+              logger.error(`Error running ${WORKERS.SUMMARY_GENERATOR}`, {
+                error,
+              });
+            }
+          } else {
+            logger.debug(
+              "Skipping summary generator - not enough time elapsed since last run",
+            );
+          }
+        } catch (error) {
+          logger.error("Error checking if summary generator should run", {
+            error,
+          });
         }
       }
 
       if (INTERVALS.SEND_NOTIFICATIONS > 0) {
-        const shouldRun = await storyRepo.shouldRunWorker(
-          WORKERS.NOTIFICATION_SENDER,
-          INTERVALS.SEND_NOTIFICATIONS,
-        );
-
-        if (shouldRun) {
-          logger.info("Running notification sender");
-          await notificationSenderHandler(dummyRequest, env, ctx);
-          await storyRepo.updateWorkerRunTime(WORKERS.NOTIFICATION_SENDER);
-          workersRun.push(WORKERS.NOTIFICATION_SENDER);
-        } else {
-          logger.debug(
-            "Skipping notification sender - not enough time elapsed since last run",
+        try {
+          const shouldRun = await storyRepo.shouldRunWorker(
+            WORKERS.NOTIFICATION_SENDER,
+            INTERVALS.SEND_NOTIFICATIONS,
           );
+
+          if (shouldRun) {
+            logger.info("Running notification sender");
+            try {
+              await notificationSenderHandler(dummyRequest, env, ctx);
+              await storyRepo.updateWorkerRunTime(WORKERS.NOTIFICATION_SENDER);
+              workersRun.push(WORKERS.NOTIFICATION_SENDER);
+            } catch (error) {
+              logger.error(`Error running ${WORKERS.NOTIFICATION_SENDER}`, {
+                error,
+              });
+            }
+          } else {
+            logger.debug(
+              "Skipping notification sender - not enough time elapsed since last run",
+            );
+          }
+        } catch (error) {
+          logger.error("Error checking if notification sender should run", {
+            error,
+          });
         }
       }
 

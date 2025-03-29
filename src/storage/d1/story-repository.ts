@@ -23,7 +23,41 @@ export class StoryRepository {
    * Create a new story repository
    */
   constructor() {
-    this.db = ENV.get("HN_SUMMARIZER_DB");
+    try {
+      this.db = ENV.get("HN_SUMMARIZER_DB");
+
+      // Add validation check
+      if (!this.db) {
+        logger.error(
+          "Failed to initialize StoryRepository - database binding is null",
+        );
+      } else {
+        logger.debug("StoryRepository initialized successfully");
+      }
+    } catch (error) {
+      logger.error("Failed to initialize StoryRepository", { error });
+      // Initialize with null - operations will fail but won't crash the app
+      this.db = null;
+    }
+  }
+
+  /**
+   * Check if the database connection is valid
+   */
+  isConnected(): boolean {
+    return !!this.db;
+  }
+
+  /**
+   * Validate database connection before operations
+   * @throws Error if not connected
+   */
+  private validateConnection() {
+    if (!this.db) {
+      const error = new Error("Database connection not available");
+      logger.error("Database validation failed", { error });
+      throw error;
+    }
   }
 
   /**
@@ -34,6 +68,7 @@ export class StoryRepository {
    */
   async saveStory(story: ProcessedStory): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = new Date().toISOString();
 
       // Check if story already exists
@@ -132,6 +167,7 @@ export class StoryRepository {
    */
   async getStory(id: HNStoryID): Promise<ProcessedStory | null> {
     try {
+      this.validateConnection();
       const result = await this.db
         .prepare(
           `
@@ -164,6 +200,7 @@ export class StoryRepository {
     limit = 10,
   ): Promise<ProcessedStory[]> {
     try {
+      this.validateConnection();
       const results = await this.db
         .prepare(
           `
@@ -195,6 +232,7 @@ export class StoryRepository {
     limit = 10,
   ): Promise<ProcessedStory[]> {
     try {
+      this.validateConnection();
       if (!statuses || statuses.length === 0) {
         return [];
       }
@@ -254,6 +292,7 @@ export class StoryRepository {
     error?: string,
   ): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = new Date().toISOString();
 
       const result = await this.db
@@ -289,6 +328,7 @@ export class StoryRepository {
    */
   async updateContentId(id: HNStoryID, contentId: string): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = new Date().toISOString();
 
       const result = await this.db
@@ -324,6 +364,7 @@ export class StoryRepository {
    */
   async updateSummaryId(id: HNStoryID, summaryId: string): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = new Date().toISOString();
 
       const result = await this.db
@@ -358,6 +399,7 @@ export class StoryRepository {
    */
   async exists(id: HNStoryID): Promise<boolean> {
     try {
+      this.validateConnection();
       const result = await this.db
         .prepare(
           `
@@ -382,6 +424,7 @@ export class StoryRepository {
    */
   async getLatestStories(limit = 10): Promise<ProcessedStory[]> {
     try {
+      this.validateConnection();
       const results = await this.db
         .prepare(
           `
@@ -415,6 +458,7 @@ export class StoryRepository {
     error?: string,
   ): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = new Date().toISOString();
 
       const result = await this.db
@@ -451,14 +495,6 @@ export class StoryRepository {
   }
 
   /**
-   * Mark a story for summarization retry
-   *
-   * @param id Story ID
-   * @param retryCount Current retry count
-   * @param error Optional error message
-   * @returns Whether the operation was successful
-   */
-  /**
    * Get the last run time for a worker
    *
    * @param workerName Name of the worker
@@ -466,6 +502,7 @@ export class StoryRepository {
    */
   async getLastWorkerRunTime(workerName: string): Promise<string | null> {
     try {
+      this.validateConnection();
       const result = await this.db
         .prepare(
           `
@@ -494,7 +531,13 @@ export class StoryRepository {
     timestamp?: string,
   ): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = timestamp || new Date().toISOString();
+
+      logger.debug("Updating worker run time", {
+        workerName,
+        timestamp: now,
+      });
 
       // Check if worker entry exists
       const exists = await this.db
@@ -557,6 +600,7 @@ export class StoryRepository {
     intervalMinutes: number,
   ): Promise<boolean> {
     try {
+      this.validateConnection();
       const lastRunTime = await this.getLastWorkerRunTime(workerName);
 
       // If never run before, should run now
@@ -597,6 +641,7 @@ export class StoryRepository {
     error?: string,
   ): Promise<boolean> {
     try {
+      this.validateConnection();
       const now = new Date().toISOString();
 
       const result = await this.db
@@ -640,6 +685,7 @@ export class StoryRepository {
    */
   async getStoriesForContentProcessing(limit = 10): Promise<ProcessedStory[]> {
     try {
+      this.validateConnection();
       const MAX_RETRIES =
         ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
 
@@ -683,6 +729,7 @@ export class StoryRepository {
    */
   async getStoriesForSummaryGeneration(limit = 10): Promise<ProcessedStory[]> {
     try {
+      this.validateConnection();
       const MAX_RETRIES =
         ENV.get("MAX_RETRY_ATTEMPTS") || PROCESSING.RETRY.DEFAULT_MAX_RETRIES;
 
@@ -740,9 +787,6 @@ export class StoryRepository {
   }
 }
 
-/**
- * Database row type for stories table
- */
 /**
  * Database row type for worker_run_times table
  */
