@@ -15,7 +15,6 @@ import { HNStory } from "../../types/hackernews";
 /**
  * Discord notification service
  */
-// In src/services/notifications/discord.ts
 export class DiscordNotifier {
   private webhookUrl: string | null = null;
 
@@ -39,21 +38,25 @@ export class DiscordNotifier {
     }
 
     try {
+      // Format a concise version of the summary that won't be cut off
+      const conciseSummary = this.formatConciseSummary(summary.summary, 900);
+
       // Create a simpler payload without using Discord.js
       const payload = {
         embeds: [
           {
-            title: story.title,
+            title: `${story.title} | Score: ${story.score} ⭐`,
             url: story.url,
             description:
-              summary.shortSummary || summary.summary.substring(0, 300),
-            color: 0x0000ff, // Blue
+              summary.shortSummary ||
+              this.formatConciseSummary(summary.summary, 300),
+            color: 0x0099ff, // A nicer blue
             fields: [
               {
                 name: "Summary",
-                value: this.truncateText(summary.summary, 1024),
+                value: conciseSummary,
               },
-              ...(summary.keyPoints
+              ...(summary.keyPoints && summary.keyPoints.length > 0
                 ? [
                     {
                       name: "Key Points",
@@ -64,32 +67,17 @@ export class DiscordNotifier {
                     },
                   ]
                 : []),
-              ...(summary.topics
-                ? [
-                    {
-                      name: "Topics",
-                      value: summary.topics.join(", "),
-                      inline: true,
-                    },
-                  ]
-                : []),
-              ...(summary.estimatedReadingTime
-                ? [
-                    {
-                      name: "Reading Time",
-                      value: `${summary.estimatedReadingTime} min`,
-                      inline: true,
-                    },
-                  ]
-                : []),
               {
-                name: "HackerNews",
-                value: `[Discussion](https://news.ycombinator.com/item?id=${story.id})`,
-                inline: true,
+                name: "Links",
+                value: `[HN Discussion](https://news.ycombinator.com/item?id=${story.id})${
+                  story.url ? ` | [Original Article](${story.url})` : ""
+                }`,
               },
             ],
             footer: {
-              text: `Score: ${story.score} | By: ${story.by} | Summarized by HN Summarizer`,
+              text: `Posted by: ${story.by} | ${summary.estimatedReadingTime || "?"} min read | ${
+                summary.topics ? summary.topics.join(", ") : "Tech"
+              }`,
             },
             timestamp: new Date().toISOString(),
           },
@@ -124,19 +112,49 @@ export class DiscordNotifier {
     }
   }
 
-  private truncateText(text: string, maxLength: number): string {
+  /**
+   * Format a concise version of a summary to fit within Discord's limits
+   * without cutting off mid-sentence
+   *
+   * @param text The text to format
+   * @param maxLength Maximum character length
+   * @returns Formatted text
+   */
+  private formatConciseSummary(text: string, maxLength: number): string {
+    // If the text is already shorter than maxLength, return it as is
     if (text.length <= maxLength) {
       return text;
     }
 
-    // Truncate at the last space before maxLength
-    const truncated = text.substring(0, maxLength - 3);
-    const lastSpace = truncated.lastIndexOf(" ");
+    // Split the text into sentences
+    const sentences = text.match(/[^.!?]+[.!?]+/g) || [];
 
-    if (lastSpace > 0) {
-      return truncated.substring(0, lastSpace) + "...";
+    // Start with an empty result
+    let result = "";
+
+    // Add sentences until we're close to the limit
+    for (const sentence of sentences) {
+      if ((result + sentence).length <= maxLength - 10) {
+        // Leave some buffer
+        result += sentence;
+      } else {
+        break;
+      }
     }
 
-    return truncated + "...";
+    // If we couldn't fit any complete sentences or the result is too short,
+    // fall back to a clean truncation without ellipsis
+    if (result.length < 100) {
+      // Truncate at the last complete word
+      result = text.substring(0, maxLength - 10);
+      const lastSpace = result.lastIndexOf(" ");
+      if (lastSpace > 0) {
+        result = result.substring(0, lastSpace);
+      }
+
+      // No ellipsis - we're ending at a complete sentence or word
+    }
+
+    return result.trim();
   }
 }
