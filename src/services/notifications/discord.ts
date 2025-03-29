@@ -41,6 +41,12 @@ export class DiscordNotifier {
       // Format a concise version of the summary that won't be cut off
       const conciseSummary = this.formatConciseSummary(summary.summary, 900);
 
+      // Format topics as a paragraph if available
+      const topicsText =
+        summary.topics && summary.topics.length > 0
+          ? `**Topics:** ${summary.topics.join(", ")}`
+          : "**Topics:** Tech";
+
       // Create a simpler payload without using Discord.js
       const payload = {
         embeds: [
@@ -68,6 +74,10 @@ export class DiscordNotifier {
                   ]
                 : []),
               {
+                name: "Topics",
+                value: topicsText.replace("**Topics:** ", ""),
+              },
+              {
                 name: "Links",
                 value: `[HN Discussion](https://news.ycombinator.com/item?id=${story.id})${
                   story.url ? ` | [Original Article](${story.url})` : ""
@@ -75,9 +85,7 @@ export class DiscordNotifier {
               },
             ],
             footer: {
-              text: `Posted by: ${story.by} | ${summary.estimatedReadingTime || "?"} min read | ${
-                summary.topics ? summary.topics.join(", ") : "Tech"
-              }`,
+              text: `Posted by: ${story.by} | ${summary.estimatedReadingTime || "?"} min read`,
             },
             timestamp: new Date().toISOString(),
           },
