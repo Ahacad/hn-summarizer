@@ -2,6 +2,28 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.1](https://github.com/Ahacad/hn-summarizer/compare/v0.4.0...v0.4.1) (2025-03-29)
+
+
+### Bug Fixes
+
+* change discord summary styles ([59df845](https://github.com/Ahacad/hn-summarizer/commit/59df845051f45697d79e3b477308500eb1043394))
+* **cronjob:** add initial insert clauses for database 002 migration ([90faf9e](https://github.com/Ahacad/hn-summarizer/commit/90faf9e48b78bc1f7d8e2bd30b2b1d0fa692c3a3))
+* **cronjob:** fix cron job logic ([112bf23](https://github.com/Ahacad/hn-summarizer/commit/112bf23486ef39f49519edabd45203e9ff80e9d9))
+* fix for prompt for website that cannot be scrapped ([9c1053b](https://github.com/Ahacad/hn-summarizer/commit/9c1053bb6932f645904982253d23cb07f3a5bec5))
+* trying to fix calling failures in cloudflare cron jobs ([15a6947](https://github.com/Ahacad/hn-summarizer/commit/15a6947a9297e047fd4464070232a01cb4a249e2))
+
+
+### Chores
+
+* **PROCESS_CONTENT:** reduce process content frequency to reduce firecrawl server stress ([6aca5ab](https://github.com/Ahacad/hn-summarizer/commit/6aca5ab177bfe6b33654547e6dd5c0e1802ce8be))
+* **wrangler:** enable logs for workers ([6df7722](https://github.com/Ahacad/hn-summarizer/commit/6df77223639be88005dec39df4d4bc7c89db5da5))
+
+
+### Styling
+
+* **discord.ts:** move topics to a independent paragraph ([afeacef](https://github.com/Ahacad/hn-summarizer/commit/afeacef456a605bb30019d66fdb6139500e06a48))
+
 ## [0.4.0](https://github.com/Ahacad/hn-summarizer/compare/v0.3.0...v0.4.0) (2025-03-21)
 
 
