@@ -12,9 +12,10 @@
 export const promptTemplates = {
   /**
    * Template for generating a summary
+   * Enhanced for Gemini 2.5 with larger context window
    */
   summary: `
-You are an expert summarizer who creates concise, informative summaries of articles.
+You are an expert summarizer who creates comprehensive, informative summaries of articles.
 
 ARTICLE TITLE: {{TITLE}}
 
@@ -48,13 +49,13 @@ IMPORTANT: Before summarizing, first evaluate if the content represents a legiti
 
 2. If the content appears to be a legitimate article, please create a summary with the following components:
 
-   SUMMARY: A comprehensive summary (3-5 paragraphs) capturing the key information and main points of the article.
+   SUMMARY: A comprehensive summary (4-7 paragraphs) capturing the key information, main points, and important nuances of the article. With the enhanced context capabilities, you can now include more detailed analysis and important context that might have been omitted in shorter summaries.
 
-   SHORT SUMMARY: A very short (1-2 sentences) summary for quick understanding.
+   SHORT SUMMARY: A concise (2-3 sentences) summary for quick understanding that captures the essence of the article.
 
-   KEY POINTS: The 3-5 most important takeaways from the article, listed as bullet points.
+   KEY POINTS: The 5-8 most important takeaways from the article, listed as bullet points. Include both main arguments and important supporting details.
 
-   TOPICS: A comma-separated list of topics/categories that this article covers.
+   TOPICS: A comma-separated list of topics/categories that this article covers. Be comprehensive and include both primary and secondary topics.
 
 Format your response exactly as:
 
@@ -68,11 +69,14 @@ KEY POINTS:
 - [Key point 1]
 - [Key point 2]
 - [Key point 3]
-- [Key point 4 if needed]
-- [Key point 5 if needed]
+- [Key point 4]
+- [Key point 5]
+- [Key point 6 if needed]
+- [Key point 7 if needed]
+- [Key point 8 if needed]
 
 TOPICS:
-[topic1], [topic2], [topic3], [etc.]
+[topic1], [topic2], [topic3], [topic4], [topic5], [etc.]
 `.trim(),
 
   /**

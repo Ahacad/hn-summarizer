@@ -42,17 +42,21 @@ export const API = {
    */
   GOOGLE_AI: {
     /** Default model to use */
-    // DEFAULT_MODEL: "gemini-2.0-flash",
-    DEFAULT_MODEL: "gemini-2.0-pro-exp-02-05",
+    DEFAULT_MODEL: "gemini-2.5-pro-exp-03-25",
 
-    /** Default maximum tokens for summaries */
-    DEFAULT_MAX_TOKENS: 8192,
+    /** Default maximum tokens for output */
+    DEFAULT_MAX_TOKENS: 65536,
 
     /** Default temperature for generation */
     DEFAULT_TEMPERATURE: 0.2,
 
-    /** Maximum character length for content before truncation */
-    MAX_CONTENT_CHARS: 100000,
+    /** Maximum character length for content before truncation
+     * With the new model's large input window, we can process much more content
+     */
+    MAX_CONTENT_CHARS: 1000000,
+
+    /** Input token limit for the model */
+    MAX_INPUT_TOKENS: 1048576,
   },
 };
 
@@ -90,6 +94,9 @@ export const PROCESSING = {
   TOKEN_ESTIMATION: {
     /** Approximate characters per token for English text */
     CHARS_PER_TOKEN: 4,
+
+    /** Approximate characters per token for code or specialized content */
+    CHARS_PER_CODE_TOKEN: 2,
   },
 
   /**

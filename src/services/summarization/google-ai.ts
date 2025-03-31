@@ -169,14 +169,17 @@ export class GoogleAISummarizer {
    * Truncate content to a reasonable length for the LLM
    */
   private truncateContent(content: string): string {
-    // For Gemini models, we can handle more content
-    const maxChars = API.GOOGLE_AI.MAX_CONTENT_CHARS; // Generous limit for Gemini 2.0
+    // For Gemini 2.5 models, we can handle much more content
+    const maxChars = API.GOOGLE_AI.MAX_CONTENT_CHARS; // Very generous limit for Gemini 2.5
 
     if (content.length <= maxChars) {
       return content;
     }
 
-    // Truncate and add indicator
+    // Even with the large context window, we still need to truncate extremely large content
+    logger.info(
+      `Truncating content from ${content.length} to ${maxChars} characters`,
+    );
     return (
       content.substring(0, maxChars) + "... [content truncated due to length]"
     );
@@ -283,12 +286,26 @@ export class GoogleAISummarizer {
   }
 
   /**
-   * Rough estimate of token count
-   * Note: This is a very rough approximation and actual token count
-   * will vary based on the tokenizer used by the model
+   * Estimate token count
+   * Updated to be more accurate for Gemini 2.5 models
+   * Note: This is still an approximation, as the actual tokenization
+   * performed by the model may vary.
    */
   private estimateTokenCount(text: string): number {
-    // Simple approximation: 1 token ≈ 4 characters for English text
-    return Math.ceil(text.length / PROCESSING.TOKEN_ESTIMATION.CHARS_PER_TOKEN);
+    // More accurate approximation for Gemini tokenization:
+    // - 1 token ≈ 4 characters for English text in general
+    // - 1 token ≈ 1-2 characters for code or specialized content
+
+    // Check if content likely contains code (uses a simple heuristic)
+    const containsCode = /```|\bfunction\b|\bclass\b|[{};]\n|\/\*|\*\//.test(
+      text,
+    );
+
+    // Use a more conservative estimate for code-heavy content
+    const charsPerToken = containsCode
+      ? PROCESSING.TOKEN_ESTIMATION.CHARS_PER_CODE_TOKEN
+      : PROCESSING.TOKEN_ESTIMATION.CHARS_PER_TOKEN;
+
+    return Math.ceil(text.length / charsPerToken);
   }
 }
