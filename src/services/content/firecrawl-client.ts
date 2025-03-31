@@ -49,216 +49,354 @@ export class FirecrawlClient {
 
   /**
    * Extract content from a URL using Firecrawl's scrape endpoint
+   * Includes retry mechanism and rate limiting
    *
    * @param url URL to extract content from
+   * @param retryCount Number of retry attempts (default: 3)
+   * @param retryDelay Delay between retries in ms (default: 1000)
    * @returns Extracted content or null if extraction failed
    */
-  async extractContent(url: string): Promise<ExtractedContent | null> {
-    try {
-      logger.debug("Extracting content via Firecrawl API", { url });
+  /**
+   * Extract content from a URL using Firecrawl's scrape endpoint
+   * Includes retry mechanism and rate limiting
+   *
+   * @param url URL to extract content from
+   * @param retryCount Maximum number of retry attempts (default: 3)
+   * @param retryDelay Initial delay between retries in ms (default: 1000)
+   * @returns Extracted content or null if extraction failed
+   */
+  async extractContent(
+    url: string,
+    retryCount = 3,
+    retryDelay = 1000,
+  ): Promise<ExtractedContent | null> {
+    let attempts = 0;
 
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    while (attempts <= retryCount) {
+      try {
+        // Add delay between attempts to respect rate limits
+        if (attempts > 0) {
+          logger.info(`Retry attempt ${attempts} for extracting content`, {
+            url,
+          });
+          // Use exponential backoff
+          const delay = retryDelay * Math.pow(2, attempts - 1);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
 
-      // Prepare request headers
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+        logger.debug("Extracting content via Firecrawl API", { url });
 
-      // Add API key if available
-      if (this.apiKey) {
-        headers["Authorization"] = `Bearer ${this.apiKey}`;
-      }
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      // Prepare API request
-      // Note: No need to add /v1 as the proxy will handle that
-      const response = await fetch(`${this.apiUrl}/scrape`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          url,
-          formats: ["markdown", "html"],
-        }),
-        signal: controller.signal,
-      });
+        // Prepare request headers
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
 
-      // Clear the timeout
-      clearTimeout(timeoutId);
+        // Add API key if available
+        if (this.apiKey) {
+          headers["Authorization"] = `Bearer ${this.apiKey}`;
+        }
 
-      if (!response.ok) {
-        logger.warn("Firecrawl API request failed", {
-          url,
-          status: response.status,
-          statusText: response.statusText,
+        // Prepare API request
+        const response = await fetch(`${this.apiUrl}/scrape`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            url,
+            formats: ["markdown", "html"],
+            waitFor: 5000, // Wait for dynamic content to load
+          }),
+          signal: controller.signal,
         });
-        return null;
-      }
 
-      // Parse the API response
-      const data = await response.json();
+        // Clear the timeout
+        clearTimeout(timeoutId);
 
-      if (!data.success) {
-        logger.warn("Firecrawl extraction failed", {
+        // Handle rate limiting explicitly
+        if (response.status === 429) {
+          logger.warn("Rate limit reached for Firecrawl API", {
+            url,
+            attempt: attempts + 1,
+            maxAttempts: retryCount + 1,
+          });
+
+          // Get retry-after header if available
+          const retryAfter = response.headers.get("retry-after");
+          let waitTime = retryDelay * Math.pow(2, attempts);
+
+          if (retryAfter) {
+            waitTime = parseInt(retryAfter, 10) * 1000;
+          }
+
+          attempts++;
+
+          // If we have more attempts, wait and continue
+          if (attempts <= retryCount) {
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+            continue;
+          }
+
+          return null;
+        }
+
+        if (!response.ok) {
+          logger.warn("Firecrawl API request failed", {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            attempt: attempts + 1,
+            maxAttempts: retryCount + 1,
+          });
+
+          attempts++;
+
+          // If we have more attempts, continue
+          if (attempts <= retryCount) {
+            continue;
+          }
+
+          return null;
+        }
+
+        // Parse the API response
+        const data = await response.json();
+
+        if (!data.success) {
+          logger.warn("Firecrawl extraction failed", {
+            url,
+            error: data.error,
+          });
+          return null;
+        }
+
+        // Extract metadata from the response
+        const metadata = data.data.metadata || {};
+
+        // Calculate word count from markdown
+        const markdown = data.data.markdown || "";
+        const cleanedText = markdown
+          .replace(/```[\s\S]*?```/g, "") // Remove code blocks
+          .replace(/`.*?`/g, "") // Remove inline code
+          .replace(/\!?\[.*?\]\(.*?\)/g, "") // Remove markdown links
+          .replace(/\n#+\s+/g, "\n") // Remove heading markers
+          .replace(/\n[-*+]\s+/g, "\n"); // Remove list markers
+
+        // Count words more accurately
+        const wordCount = cleanedText
+          .split(/\s+/)
+          .filter((word) => word.trim().length > 0).length;
+
+        // Map Firecrawl response to our ExtractedContent type
+        const extractedContent: ExtractedContent = {
           url,
-          error: data.error,
-        });
-        return null;
-      }
+          title: metadata.title || "",
+          byline: metadata.author || null,
+          content: markdown,
+          excerpt: metadata.description || null,
+          siteName: metadata.ogSiteName || null,
+          rawContent: markdown,
+          rawHtml: data.data.html || "",
+          wordCount,
+          extractedAt: new Date().toISOString(),
+        };
 
-      // Extract metadata from the response
-      const metadata = data.data.metadata || {};
-
-      // Calculate word count from markdown
-      const markdown = data.data.markdown || "";
-      const cleanedText = markdown
-        .replace(/```[\s\S]*?```/g, "") // Remove code blocks
-        .replace(/`.*?`/g, "") // Remove inline code
-        .replace(/\!?\[.*?\]\(.*?\)/g, "") // Remove markdown links
-        .replace(/\n#+\s+/g, "\n") // Remove heading markers
-        .replace(/\n[-*+]\s+/g, "\n"); // Remove list markers
-
-      // Count words more accurately
-      const wordCount = cleanedText
-        .split(/\s+/)
-        .filter((word) => word.trim().length > 0).length;
-
-      // Map Firecrawl response to our ExtractedContent type
-      const extractedContent: ExtractedContent = {
-        url: url,
-        title: metadata.title || "",
-        byline: metadata.author || null,
-        content: markdown,
-        excerpt: metadata.description || null,
-        siteName: metadata.ogSiteName || null,
-        rawContent: markdown,
-        rawHtml: data.data.html || "",
-        wordCount: wordCount,
-        extractedAt: new Date().toISOString(),
-      };
-
-      logger.debug("Successfully extracted content via Firecrawl API", {
-        url,
-        title: extractedContent.title,
-        wordCount: extractedContent.wordCount,
-      });
-
-      return extractedContent;
-    } catch (error) {
-      if (error.name === "AbortError") {
-        logger.warn("Firecrawl API request timed out", {
+        logger.debug("Successfully extracted content via Firecrawl API", {
           url,
-          timeout: this.timeout,
+          title: extractedContent.title,
+          wordCount: extractedContent.wordCount,
         });
-      } else {
-        logger.error("Error extracting content via Firecrawl API", {
-          error,
-          url,
-        });
+
+        return extractedContent;
+      } catch (error) {
+        if (error.name === "AbortError") {
+          logger.warn("Firecrawl API request timed out", {
+            url,
+            timeout: this.timeout,
+          });
+        } else {
+          logger.error("Error extracting content via Firecrawl API", {
+            error,
+            url,
+          });
+        }
+        attempts++;
       }
-      return null;
     }
+
+    // If we've exhausted all retry attempts
+    logger.warn("All retry attempts failed for content extraction", {
+      url,
+      attempts: retryCount + 1,
+    });
+    return null;
   }
 
   /**
    * Extract structured data from a URL using Firecrawl's extract endpoint
+   * Includes retry mechanism and rate limiting
    *
    * @param url URL to extract data from
    * @param schema JSON schema for the data to extract
    * @param prompt Optional prompt to guide extraction
+   * @param retryCount Maximum number of retry attempts (default: 3)
+   * @param retryDelay Initial delay between retries in ms (default: 1000)
    * @returns Extracted data or null if extraction failed
    */
   async extractStructuredData(
     url: string,
     schema: any,
     prompt?: string,
+    retryCount = 3,
+    retryDelay = 1000,
   ): Promise<any | null> {
-    try {
-      logger.debug("Extracting structured data via Firecrawl API", { url });
+    let attempts = 0;
 
-      // Create AbortController for timeout
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), this.timeout);
+    while (attempts <= retryCount) {
+      try {
+        // Add delay between attempts to respect rate limits
+        if (attempts > 0) {
+          logger.info(
+            `Retry attempt ${attempts} for extracting structured data`,
+            { url },
+          );
+          // Use exponential backoff
+          const delay = retryDelay * Math.pow(2, attempts - 1);
+          await new Promise((resolve) => setTimeout(resolve, delay));
+        }
 
-      // Prepare request headers
-      const headers: Record<string, string> = {
-        "Content-Type": "application/json",
-      };
+        logger.debug("Extracting structured data via Firecrawl API", { url });
 
-      // Add API key if available
-      if (this.apiKey) {
-        headers["Authorization"] = `Bearer ${this.apiKey}`;
-      }
+        // Create AbortController for timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-      // Prepare the request body
-      const requestBody: any = {
-        urls: [url],
-        schema: schema,
-      };
+        // Prepare request headers
+        const headers: Record<string, string> = {
+          "Content-Type": "application/json",
+        };
 
-      if (prompt) {
-        requestBody.prompt = prompt;
-      }
+        // Add API key if available
+        if (this.apiKey) {
+          headers["Authorization"] = `Bearer ${this.apiKey}`;
+        }
 
-      // Make the API request
-      // Note: No need to add /v1 as the proxy will handle that
-      const response = await fetch(`${this.apiUrl}/extract`, {
-        method: "POST",
-        headers,
-        body: JSON.stringify(requestBody),
-        signal: controller.signal,
-      });
+        // Prepare the request body
+        const requestBody: any = {
+          urls: [url],
+          schema,
+        };
 
-      // Clear the timeout
-      clearTimeout(timeoutId);
+        if (prompt) {
+          requestBody.prompt = prompt;
+        }
 
-      if (!response.ok) {
-        logger.warn("Firecrawl API request failed", {
-          url,
-          status: response.status,
-          statusText: response.statusText,
+        // Make the API request
+        const response = await fetch(`${this.apiUrl}/extract`, {
+          method: "POST",
+          headers,
+          body: JSON.stringify(requestBody),
+          signal: controller.signal,
         });
-        return null;
-      }
 
-      // Parse the API response
-      const data = await response.json();
+        // Clear the timeout
+        clearTimeout(timeoutId);
 
-      if (!data.success) {
-        logger.warn("Firecrawl extraction failed", {
-          url,
-          error: data.error,
-        });
-        return null;
-      }
+        // Handle rate limiting explicitly
+        if (response.status === 429) {
+          logger.warn("Rate limit reached for Firecrawl API", {
+            url,
+            attempt: attempts + 1,
+            maxAttempts: retryCount + 1,
+          });
 
-      // If we get a job ID, we need to poll for results
-      if (data.id) {
-        // Poll for results (with backoff)
-        const extractionData = await this.pollForExtractionResults(data.id);
-        return extractionData;
-      }
+          // Get retry-after header if available
+          const retryAfter = response.headers.get("retry-after");
+          let waitTime = retryDelay * Math.pow(2, attempts);
 
-      // Direct response without job ID
-      return data.data;
-    } catch (error) {
-      if (error.name === "AbortError") {
-        logger.warn("Firecrawl API request timed out", {
-          url,
-          timeout: this.timeout,
-        });
-      } else {
-        logger.error("Error extracting structured data via Firecrawl API", {
-          error,
-          url,
-        });
+          if (retryAfter) {
+            waitTime = parseInt(retryAfter, 10) * 1000;
+          }
+
+          attempts++;
+
+          // If we have more attempts, wait and continue
+          if (attempts <= retryCount) {
+            await new Promise((resolve) => setTimeout(resolve, waitTime));
+            continue;
+          }
+
+          return null;
+        }
+
+        if (!response.ok) {
+          logger.warn("Firecrawl API request failed", {
+            url,
+            status: response.status,
+            statusText: response.statusText,
+            attempt: attempts + 1,
+            maxAttempts: retryCount + 1,
+          });
+
+          attempts++;
+
+          // If we have more attempts, continue
+          if (attempts <= retryCount) {
+            continue;
+          }
+
+          return null;
+        }
+
+        // Parse the API response
+        const data = await response.json();
+
+        if (!data.success) {
+          logger.warn("Firecrawl extraction failed", {
+            url,
+            error: data.error,
+          });
+          return null;
+        }
+
+        // If we get a job ID, we need to poll for results
+        if (data.id) {
+          // Poll for results (with backoff)
+          const extractionData = await this.pollForExtractionResults(data.id);
+          return extractionData;
+        }
+
+        // Direct response without job ID
+        return data.data;
+      } catch (error) {
+        if (error.name === "AbortError") {
+          logger.warn("Firecrawl API request timed out", {
+            url,
+            timeout: this.timeout,
+          });
+        } else {
+          logger.error("Error extracting structured data via Firecrawl API", {
+            error,
+            url,
+          });
+        }
+        attempts++;
       }
-      return null;
     }
+
+    // If we've exhausted all retry attempts
+    logger.warn("All retry attempts failed for structured data extraction", {
+      url,
+      attempts: retryCount + 1,
+    });
+    return null;
   }
 
   /**
    * Poll for extraction results from a job ID
+   * Uses exponential backoff to avoid overwhelming the API
    *
    * @param jobId Job ID to poll for
    * @param maxAttempts Maximum number of polling attempts
@@ -279,7 +417,6 @@ export class FirecrawlClient {
         await new Promise((resolve) => setTimeout(resolve, delay));
 
         // Check job status
-        // Note: No need to add /v1 as the proxy will handle that
         const response = await fetch(`${this.apiUrl}/extract/${jobId}`, {
           headers: {
             "Content-Type": "application/json",
@@ -291,6 +428,8 @@ export class FirecrawlClient {
             jobId,
             status: response.status,
             statusText: response.statusText,
+            attempt: attempts + 1,
+            maxAttempts,
           });
           attempts++;
           delay *= 1.5; // Exponential backoff
@@ -301,11 +440,17 @@ export class FirecrawlClient {
 
         // Check if job is completed
         if (data.status === "completed") {
+          logger.debug("Extraction job completed successfully", { jobId });
           return data.data;
         }
 
         // If job is still processing, continue polling
         if (data.status === "processing" || data.status === "queued") {
+          logger.debug("Extraction job still in progress", {
+            jobId,
+            status: data.status,
+            attempt: attempts + 1,
+          });
           attempts++;
           delay *= 1.5; // Exponential backoff
           continue;
@@ -313,11 +458,28 @@ export class FirecrawlClient {
 
         // If job failed, return null
         if (data.status === "failed") {
-          logger.warn("Extraction job failed", { jobId, error: data.error });
+          logger.warn("Extraction job failed", {
+            jobId,
+            error: data.error,
+            attempt: attempts + 1,
+          });
           return null;
         }
+
+        // Handle unknown status
+        logger.warn("Unknown job status received", {
+          jobId,
+          status: data.status,
+          attempt: attempts + 1,
+        });
+        attempts++;
+        delay *= 1.5; // Exponential backoff
       } catch (error) {
-        logger.error("Error polling extraction job", { error, jobId });
+        logger.error("Error polling extraction job", {
+          error,
+          jobId,
+          attempt: attempts + 1,
+        });
         attempts++;
         delay *= 1.5; // Exponential backoff
       }
@@ -325,6 +487,7 @@ export class FirecrawlClient {
 
     logger.warn("Exceeded maximum polling attempts for extraction job", {
       jobId,
+      maxAttempts,
     });
     return null;
   }

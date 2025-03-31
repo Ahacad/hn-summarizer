@@ -112,35 +112,56 @@ export class HackerNewsClient {
    * @param concurrency Maximum number of concurrent requests
    * @returns Array of story details
    */
+  /**
+   * Fetch details for multiple stories in parallel
+   *
+   * @param ids Array of story IDs
+   * @param concurrency Maximum number of concurrent requests
+   * @returns Array of story details
+   */
   async getStories(
     ids: HNStoryID[],
     concurrency = API.HACKERNEWS.DEFAULT_CONCURRENCY,
   ): Promise<HNStory[]> {
-    logger.info("Fetching details for multiple stories", { count: ids.length });
+    try {
+      logger.info("Fetching details for multiple stories", {
+        count: ids.length,
+      });
 
-    const results: HNStory[] = [];
+      const results: HNStory[] = [];
 
-    // Process stories in batches to control concurrency
-    for (let i = 0; i < ids.length; i += concurrency) {
-      const batch = ids.slice(i, i + concurrency);
-      const batchPromises = batch.map((id) => this.getStory(id));
+      // Process stories in batches to control concurrency
+      for (let i = 0; i < ids.length; i += concurrency) {
+        const batch = ids.slice(i, i + concurrency);
 
-      // Wait for the current batch to complete
-      const batchResults = await Promise.allSettled(batchPromises);
-
-      // Process the results
-      for (const result of batchResults) {
-        if (result.status === "fulfilled") {
-          results.push(result.value);
+        // Process each story in the batch sequentially to avoid rate limits
+        for (const id of batch) {
+          try {
+            // Add a delay between requests to avoid rate limiting
+            if (results.length > 0) {
+              await new Promise((resolve) => setTimeout(resolve, 200)); // 200ms delay between requests
+            }
+            const story = await this.getStory(id);
+            results.push(story);
+          } catch (error) {
+            logger.error("Error fetching story details", { error, id });
+            // Continue with next story
+          }
         }
       }
+
+      logger.info("Finished fetching story details", {
+        requested: ids.length,
+        retrieved: results.length,
+      });
+
+      return results;
+    } catch (error) {
+      logger.error("Error fetching stories batch", {
+        error,
+        count: ids.length,
+      });
+      throw error;
     }
-
-    logger.info("Finished fetching story details", {
-      requested: ids.length,
-      retrieved: results.length,
-    });
-
-    return results;
   }
 }
