@@ -255,14 +255,46 @@ export default {
           );
 
           if (shouldRun) {
-            logger.info("Running notification sender");
+            logger.info("Running notification sender", {
+              hasTelegramToken: !!env.TELEGRAM_BOT_TOKEN,
+              hasTelegramChatId: !!env.TELEGRAM_CHAT_ID,
+              hasDiscordWebhook: !!env.DISCORD_WEBHOOK_URL,
+            });
+
             try {
-              await notificationSenderHandler(dummyRequest, env, ctx);
+              // Create a new dummy request with cron flag to help with debugging
+              const notifRequest = new Request(
+                "https://hn-summarizer-production.rjiejin.workers.dev/cron/send-notifications",
+                {
+                  method: "GET",
+                  headers: {
+                    "X-Scheduled-Run": "true",
+                    "User-Agent": "CloudflareWorker/ScheduledEvent",
+                    "X-Cron-Task": "notification-sender",
+                    Host: "hn-summarizer-production.rjiejin.workers.dev",
+                  },
+                },
+              );
+
+              // Wrap in waitUntil to ensure completion
+              const notifPromise = notificationSenderHandler(
+                notifRequest,
+                env,
+                ctx,
+              );
+              ctx.waitUntil(notifPromise);
+
+              // Also await directly to catch any immediate errors
+              await notifPromise;
+
               await storyRepo.updateWorkerRunTime(WORKERS.NOTIFICATION_SENDER);
               workersRun.push(WORKERS.NOTIFICATION_SENDER);
             } catch (error) {
               logger.error(`Error running ${WORKERS.NOTIFICATION_SENDER}`, {
                 error,
+                errorType: error?.constructor?.name,
+                errorMessage: error?.message,
+                stack: error?.stack,
               });
             }
           } else {

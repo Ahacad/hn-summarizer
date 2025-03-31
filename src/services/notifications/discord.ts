@@ -28,7 +28,16 @@ export class DiscordNotifier {
   }
 
   isConfigured(): boolean {
-    return this.webhookUrl !== null;
+    const isConfigured = this.webhookUrl !== null;
+
+    if (!isConfigured) {
+      logger.warn("Discord notifier not properly configured", {
+        hasWebhookUrl: !!this.webhookUrl,
+        hasWebhookUrlInEnv: !!ENV.get("DISCORD_WEBHOOK_URL"),
+      });
+    }
+
+    return isConfigured;
   }
 
   async sendSummary(story: HNStory, summary: Summary): Promise<boolean> {

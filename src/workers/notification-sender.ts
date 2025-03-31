@@ -24,7 +24,19 @@ export async function notificationSenderHandler(
   ctx: ExecutionContext,
 ): Promise<Response> {
   try {
-    logger.info("Starting notification sender worker");
+    logger.info("Starting notification sender worker", {
+      requestMethod: request.method,
+      isCron: request.url.includes("cron"),
+      executionType: ctx.waitUntil ? "waitUntil available" : "no waitUntil",
+    });
+
+    // Log available environment variables for debugging
+    logger.debug("Environment variables check", {
+      hasTelegramToken: !!ENV.get("TELEGRAM_BOT_TOKEN"),
+      hasTelegramChatId: !!ENV.get("TELEGRAM_CHAT_ID"),
+      hasDiscordWebhook: !!ENV.get("DISCORD_WEBHOOK_URL"),
+      envKeys: Object.keys(env),
+    });
 
     // Initialize dependencies
     const storyRepo = new StoryRepository();
@@ -40,6 +52,8 @@ export async function notificationSenderHandler(
     logger.debug("Notification sender configuration", {
       batchSize,
       concurrencyLimit,
+      telegramConfigured: telegramNotifier.isConfigured(),
+      discordConfigured: discordNotifier.isConfigured(),
     });
 
     // Get completed stories that haven't been sent yet
@@ -51,8 +65,8 @@ export async function notificationSenderHandler(
       count: stories.length,
     });
 
-    // Process stories with controlled concurrency
-    const results = await processStoriesWithConcurrency(
+    // Use waitUntil to ensure long-running tasks complete, especially in cron jobs
+    const processingPromise = processStoriesWithConcurrency(
       stories,
       concurrencyLimit,
       telegramNotifier,
@@ -61,6 +75,18 @@ export async function notificationSenderHandler(
       storyRepo,
       hnClient,
     );
+
+    // If this is a cron job, use waitUntil to ensure completion
+    if (ctx.waitUntil) {
+      ctx.waitUntil(
+        processingPromise.catch((error) => {
+          logger.error("Error in background processing", { error });
+        }),
+      );
+    }
+
+    // Await the results for the direct response
+    const results = await processingPromise;
 
     logger.info("Notification sender completed", { results });
 

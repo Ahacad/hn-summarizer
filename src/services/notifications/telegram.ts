@@ -29,10 +29,19 @@ export class TelegramNotifier {
     // Get token from environment if not provided
     const botToken = token || ENV.get("TELEGRAM_BOT_TOKEN");
 
+    // Get chat ID from environment - NEVER use process.env in Cloudflare Workers
+    const envChatId = ENV.get("TELEGRAM_CHAT_ID");
+
     // Initialize the bot if token is available
     if (botToken) {
       this.bot = new Telegraf(botToken);
-      this.chatId = chatId || process.env.TELEGRAM_CHAT_ID || null;
+      this.chatId = chatId || envChatId || null;
+
+      logger.debug("Telegram notifier initialized", {
+        hasBot: !!this.bot,
+        hasChatId: !!this.chatId,
+        chatIdSource: chatId ? "parameter" : envChatId ? "ENV" : "none",
+      });
     } else {
       logger.warn("Telegram bot token not configured");
     }
@@ -42,7 +51,18 @@ export class TelegramNotifier {
    * Check if the service is configured
    */
   isConfigured(): boolean {
-    return this.bot !== null && this.chatId !== null;
+    const isConfigured = this.bot !== null && this.chatId !== null;
+
+    if (!isConfigured) {
+      logger.warn("Telegram notifier not fully configured", {
+        hasBot: !!this.bot,
+        hasChatId: !!this.chatId,
+        hasTokenInEnv: !!ENV.get("TELEGRAM_BOT_TOKEN"),
+        hasChatIdInEnv: !!ENV.get("TELEGRAM_CHAT_ID"),
+      });
+    }
+
+    return isConfigured;
   }
 
   /**

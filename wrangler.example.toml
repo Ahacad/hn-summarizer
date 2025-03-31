@@ -60,6 +60,7 @@ bucket_name = "hn-summarizer-content"
 # Secrets (to be set using 'wrangler secret put'):
 # - GOOGLE_AI_API_KEY
 # - TELEGRAM_BOT_TOKEN (optional)
+# - TELEGRAM_CHAT_ID (optional, required if using Telegram)
 # - DISCORD_WEBHOOK_URL (optional)
 # - FIRECRAWL_API_URL
 

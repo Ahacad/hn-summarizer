@@ -19,6 +19,7 @@ export interface EnvBindings {
   GOOGLE_AI_API_KEY: string;
   FIRECRAWL_API_URL: string; // Required Firecrawl API URL
   TELEGRAM_BOT_TOKEN?: string;
+  TELEGRAM_CHAT_ID?: string;
   DISCORD_WEBHOOK_URL?: string;
 
   // Configuration
@@ -43,6 +44,16 @@ export class ENV {
    * Initialize the environment with the provided bindings
    */
   static init(env: any): void {
+    logger.debug("Initializing environment", {
+      envKeys: Object.keys(env),
+      hasSecrets: !!(
+        env.GOOGLE_AI_API_KEY ||
+        env.TELEGRAM_BOT_TOKEN ||
+        env.DISCORD_WEBHOOK_URL
+      ),
+      hasBindings: !!(env.HN_SUMMARIZER_DB && env.CONTENT_BUCKET),
+    });
+
     // Create a properly typed version of the environment
     this.instance = {
       // Direct bindings
@@ -51,6 +62,7 @@ export class ENV {
       GOOGLE_AI_API_KEY: env.GOOGLE_AI_API_KEY,
       FIRECRAWL_API_URL: env.FIRECRAWL_API_URL,
       TELEGRAM_BOT_TOKEN: env.TELEGRAM_BOT_TOKEN,
+      TELEGRAM_CHAT_ID: env.TELEGRAM_CHAT_ID,
       DISCORD_WEBHOOK_URL: env.DISCORD_WEBHOOK_URL,
 
       // String values
