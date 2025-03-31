@@ -30,7 +30,7 @@ SUMMARY_GENERATOR_BATCH_SIZE = "5"
 SUMMARY_GENERATOR_CONCURRENCY = "3"
 NOTIFICATION_SENDER_BATCH_SIZE = "5"
 NOTIFICATION_SENDER_CONCURRENCY = "3"
-SUMMARIZATION_MAX_TOKENS = "8192"
+SUMMARIZATION_MAX_TOKENS = "65536"  # Updated for Gemini 2.5 output token limit
 MAX_RETRY_ATTEMPTS = "5"
 
 # Production environment variables
@@ -44,7 +44,7 @@ SUMMARY_GENERATOR_BATCH_SIZE = "5"
 SUMMARY_GENERATOR_CONCURRENCY = "3"
 NOTIFICATION_SENDER_BATCH_SIZE = "10"
 NOTIFICATION_SENDER_CONCURRENCY = "3"
-SUMMARIZATION_MAX_TOKENS = "8192"
+SUMMARIZATION_MAX_TOKENS = "65536"  # Updated for Gemini 2.5 output token limit
 MAX_RETRY_ATTEMPTS = "5"
 
 # D1 Database binding for production - duplicate the binding with the same values
@@ -71,6 +71,7 @@ crons = [
     "*/5 * * * *",
 ]
 
-[logs]
+# enable logs
+[observability]
 enabled = true
-level = "debug"
+head_sampling_rate = 1 # optional. default = 1.
