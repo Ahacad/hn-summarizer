@@ -9,8 +9,6 @@ import { logger } from "../../utils/logger";
 import { ExtractedContent } from "../../types/story";
 import { API } from "../../config/constants";
 import { ENV } from "../../config/environment";
-import { JSDOM } from "jsdom";
-import { Readability } from "readability";
 
 /**
  * Cloudflare Browser client for extracting content from web pages
@@ -71,7 +69,7 @@ export class CloudflareClient {
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), this.timeout);
 
-        // Using Cloudflare Workers' fetch with correct headers
+        // Using Cloudflare Workers' fetch with enhanced browser capabilities
         const response = await fetch(url, {
           method: "GET",
           headers: {
@@ -121,32 +119,90 @@ export class CloudflareClient {
         // Get HTML content
         const html = await response.text();
 
-        // Parse with JSDOM and Readability
-        const dom = new JSDOM(html, { url });
-        const reader = new Readability(dom.window.document);
-        const article = reader.parse();
+        // Simple extraction of title, meta description, and content
+        const titleMatch = html.match(/<title[^>]*>([^<]+)<\/title>/i);
+        const title = titleMatch ? titleMatch[1].trim() : "";
 
-        if (!article) {
-          logger.warn("Failed to parse article content", { url });
-          attempts++;
-          if (attempts <= retryCount) continue;
-          return null;
+        // Extract meta description
+        const descriptionMatch =
+          html.match(
+            /<meta[^>]*name=["']description["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+          ) ||
+          html.match(
+            /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']description["'][^>]*>/i,
+          );
+        const description = descriptionMatch ? descriptionMatch[1].trim() : "";
+
+        // Extract site name from og:site_name
+        const siteNameMatch =
+          html.match(
+            /<meta[^>]*property=["']og:site_name["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+          ) ||
+          html.match(
+            /<meta[^>]*content=["']([^"']+)["'][^>]*property=["']og:site_name["'][^>]*>/i,
+          );
+        const siteName = siteNameMatch ? siteNameMatch[1].trim() : "";
+
+        // Extract author if available
+        const authorMatch =
+          html.match(
+            /<meta[^>]*name=["']author["'][^>]*content=["']([^"']+)["'][^>]*>/i,
+          ) ||
+          html.match(
+            /<meta[^>]*content=["']([^"']+)["'][^>]*name=["']author["'][^>]*>/i,
+          );
+        const author = authorMatch ? authorMatch[1].trim() : "";
+
+        // Basic HTML to text conversion for content
+        // Remove scripts, styles, and other non-content elements
+        let content = html
+          .replace(/<script\b[^<]*(?:(?!<\/script>)<[^<]*)*<\/script>/gi, " ")
+          .replace(/<style\b[^<]*(?:(?!<\/style>)<[^<]*)*<\/style>/gi, " ")
+          .replace(/<nav\b[^<]*(?:(?!<\/nav>)<[^<]*)*<\/nav>/gi, " ")
+          .replace(/<footer\b[^<]*(?:(?!<\/footer>)<[^<]*)*<\/footer>/gi, " ")
+          .replace(/<header\b[^<]*(?:(?!<\/header>)<[^<]*)*<\/header>/gi, " ")
+          .replace(/<aside\b[^<]*(?:(?!<\/aside>)<[^<]*)*<\/aside>/gi, " ");
+
+        // Try to extract main content
+        const mainContentMatch =
+          content.match(/<main\b[^<]*(?:(?!<\/main>)<[^<]*)*<\/main>/i) ||
+          content.match(
+            /<article\b[^<]*(?:(?!<\/article>)<[^<]*)*<\/article>/i,
+          ) ||
+          content.match(
+            /<div[^>]*class=["'][^"']*content[^"']*["'][^>]*>[\s\S]*?<\/div>/i,
+          );
+
+        if (mainContentMatch) {
+          content = mainContentMatch[0];
         }
 
-        // Calculate word count
-        const wordCount = article.textContent
+        // Remove remaining HTML tags and decode entities
+        content = content
+          .replace(/<[^>]+>/g, " ")
+          .replace(/&nbsp;/g, " ")
+          .replace(/&amp;/g, "&")
+          .replace(/&lt;/g, "<")
+          .replace(/&gt;/g, ">")
+          .replace(/&quot;/g, '"')
+          .replace(/&apos;/g, "'")
+          .replace(/\s+/g, " ")
+          .trim();
+
+        // Count words
+        const wordCount = content
           .split(/\s+/)
           .filter((word) => word.trim().length > 0).length;
 
-        // Build the extracted content object
+        // Create the extracted content object
         const extractedContent: ExtractedContent = {
           url,
-          title: article.title || "",
-          byline: article.byline || null,
-          content: article.textContent || "",
-          excerpt: article.excerpt || null,
-          siteName: article.siteName || null,
-          rawContent: article.textContent || "",
+          title,
+          byline: author || null,
+          content,
+          excerpt: description || null,
+          siteName: siteName || null,
+          rawContent: content,
           rawHtml: html,
           wordCount,
           extractedAt: new Date().toISOString(),

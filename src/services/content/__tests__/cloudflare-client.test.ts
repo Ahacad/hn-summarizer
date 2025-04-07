@@ -1,40 +1,4 @@
 import { CloudflareClient } from "../cloudflare-client";
-import { Readability } from "readability";
-import { JSDOM } from "jsdom";
-
-// Mock dependencies
-jest.mock("jsdom", () => {
-  return {
-    JSDOM: jest.fn().mockImplementation((html, options) => {
-      return {
-        window: {
-          document: {
-            documentElement: {},
-            querySelector: jest.fn(),
-          },
-        },
-      };
-    }),
-  };
-});
-
-jest.mock("readability", () => {
-  return {
-    Readability: jest.fn().mockImplementation(() => {
-      return {
-        parse: jest.fn().mockReturnValue({
-          title: "Test Article",
-          byline: "Test Author",
-          content: "<div>Test Content</div>",
-          textContent: "Test Content",
-          excerpt: "Test excerpt",
-          siteName: "Test Site",
-          length: 100,
-        }),
-      };
-    }),
-  };
-});
 
 describe("CloudflareClient", () => {
   let client: CloudflareClient;
@@ -47,7 +11,21 @@ describe("CloudflareClient", () => {
         headers: new Map([["content-type", "text/html"]]),
         text: () =>
           Promise.resolve(
-            "<html><body><article>Test content</article></body></html>",
+            `<!DOCTYPE html>
+            <html>
+              <head>
+                <title>Test Article</title>
+                <meta name="description" content="Test excerpt">
+                <meta property="og:site_name" content="Test Site">
+                <meta name="author" content="Test Author">
+              </head>
+              <body>
+                <article>
+                  <h1>Test Article</h1>
+                  <p>This is test content with some words for testing.</p>
+                </article>
+              </body>
+            </html>`,
           ),
       });
     });
@@ -72,6 +50,7 @@ describe("CloudflareClient", () => {
       expect(content?.title).toBe("Test Article");
       expect(content?.byline).toBe("Test Author");
       expect(content?.siteName).toBe("Test Site");
+      expect(content?.excerpt).toBe("Test excerpt");
 
       // Verify fetch was called with correct parameters
       expect(fetch).toHaveBeenCalledWith(
@@ -88,13 +67,6 @@ describe("CloudflareClient", () => {
           }),
         }),
       );
-
-      // Verify JSDOM and Readability were called
-      expect(JSDOM).toHaveBeenCalledWith(
-        "<html><body><article>Test content</article></body></html>",
-        expect.objectContaining({ url: "https://example.com/article" }),
-      );
-      expect(Readability).toHaveBeenCalled();
     });
 
     it("should handle fetch errors gracefully", async () => {
@@ -125,23 +97,6 @@ describe("CloudflareClient", () => {
       // Call the method
       const content = await client.extractContent(
         "https://example.com/document.pdf",
-      );
-
-      // Verify we get null back
-      expect(content).toBeNull();
-    });
-
-    it("should handle readability failures gracefully", async () => {
-      // Override Readability to return null
-      require("readability").Readability.mockImplementationOnce(() => {
-        return {
-          parse: jest.fn().mockReturnValue(null),
-        };
-      });
-
-      // Call the method
-      const content = await client.extractContent(
-        "https://example.com/article",
       );
 
       // Verify we get null back
@@ -194,9 +149,13 @@ describe("CloudflareClient", () => {
             ok: true,
             headers: new Map([["content-type", "text/html"]]),
             text: () =>
-              Promise.resolve(
-                "<html><body><article>Test content</article></body></html>",
-              ),
+              Promise.resolve(`
+                <!DOCTYPE html>
+                <html>
+                  <head><title>Test Article</title></head>
+                  <body><article>Test content</article></body>
+                </html>
+              `),
           }),
         );
 
