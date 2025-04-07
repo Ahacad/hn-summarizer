@@ -3,6 +3,7 @@
  *
  * This worker extracts content from story URLs and saves it to R2.
  * It processes stories that have been fetched but not yet extracted.
+ * Uses Cloudflare Workers' browser utilities for content extraction.
  */
 
 import { ContentExtractor } from "../services/content/extractor";
