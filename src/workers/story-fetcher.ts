@@ -45,6 +45,7 @@ export async function storyFetcherHandler(
     // Process each story
     let newCount = 0;
     let updatedCount = 0;
+    let scoreUpdatedCount = 0;
 
     for (const story of stories) {
       // Skip non-story items or items without URLs (text posts)
@@ -52,8 +53,14 @@ export async function storyFetcherHandler(
         continue;
       }
 
-      // Check if the story already exists
-      const exists = await storyRepo.exists(story.id);
+      // Check if the story already exists and get its current data
+      const existingStory = await storyRepo.getStory(story.id);
+      const exists = !!existingStory;
+
+      // For existing stories, preserve their current status and other metadata
+      // For new stories, set to PENDING
+      const status = exists ? existingStory.status : ProcessingStatus.PENDING;
+      const scoreChanged = exists && existingStory.score !== story.score;
 
       // Create or update the story
       const success = await storyRepo.saveStory({
@@ -63,14 +70,29 @@ export async function storyFetcherHandler(
         by: story.by,
         time: story.time,
         score: story.score,
-        status: exists ? ProcessingStatus.PENDING : ProcessingStatus.PENDING,
-        processedAt: new Date().toISOString(),
+        status: status,
+        contentId: exists ? existingStory.contentId : undefined,
+        summaryId: exists ? existingStory.summaryId : undefined,
+        processedAt: exists
+          ? existingStory.processedAt
+          : new Date().toISOString(),
         updatedAt: new Date().toISOString(),
+        error: exists ? existingStory.error : undefined,
+        retryCount: exists ? existingStory.retryCount : 0,
       });
 
       if (success) {
         if (exists) {
           updatedCount++;
+          if (scoreChanged) {
+            scoreUpdatedCount++;
+            logger.debug("Updated story score", {
+              storyId: story.id,
+              oldScore: existingStory.score,
+              newScore: story.score,
+              changeAmount: story.score - existingStory.score,
+            });
+          }
         } else {
           newCount++;
         }
@@ -80,6 +102,7 @@ export async function storyFetcherHandler(
     logger.info("Story fetcher completed", {
       new: newCount,
       updated: updatedCount,
+      scoreUpdated: scoreUpdatedCount,
       total: stories.length,
     });
 
@@ -88,6 +111,7 @@ export async function storyFetcherHandler(
         success: true,
         new: newCount,
         updated: updatedCount,
+        scoreUpdated: scoreUpdatedCount,
         total: stories.length,
       }),
       {
