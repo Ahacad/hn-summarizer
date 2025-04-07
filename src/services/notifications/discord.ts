@@ -56,11 +56,6 @@ export class DiscordNotifier {
       // Format topics without emojis
       const formattedTopics = this.formatTopics(summary.topics || ["Tech"]);
 
-      // Calculate reading time emoji
-      const readingTimeEmoji = this.getReadingTimeEmoji(
-        summary.estimatedReadingTime || 5,
-      );
-
       // Format date in a compact way with PDT timezone
       const timestamp = new Date();
       const formattedDate = this.formatCompactDate(timestamp);
@@ -93,7 +88,7 @@ export class DiscordNotifier {
               },
               {
                 name: "⏱️ Reading Time",
-                value: `${readingTimeEmoji} ${summary.estimatedReadingTime || "?"} min read`,
+                value: `${summary.estimatedReadingTime || "?"} min read`,
                 inline: true,
               },
               {
@@ -236,15 +231,6 @@ export class DiscordNotifier {
     if (score >= 200) return "🥈"; // Silver
     if (score >= 100) return "🥉"; // Bronze
     return "⭐"; // Default star
-  }
-
-  /**
-   * Get reading time emoji based on length
-   */
-  private getReadingTimeEmoji(minutes: number): string {
-    if (minutes >= 15) return "📚"; // Long read
-    if (minutes >= 8) return "📖"; // Medium read
-    return "📄"; // Short read
   }
 
   /**
