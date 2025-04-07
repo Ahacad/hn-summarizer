@@ -14,7 +14,7 @@ import { logger } from "../../utils/logger";
 import { ENV } from "../../config/environment";
 import { Summary } from "../../types/summary";
 import { promptTemplates } from "./prompt-templates";
-import { HNStoryID } from "../../types/hackernews";
+import { HNStoryID, HNStory } from "../../types/hackernews";
 import { API, PROCESSING } from "../../config/constants";
 
 /**
@@ -266,6 +266,88 @@ export class GoogleAISummarizer {
    * Estimate reading time for content
    * Updated to accept pre-calculated wordCount
    */
+  /**
+   * Generate a daily digest newspaper from a collection of stories and summaries
+   *
+   * @param stories Array of HackerNews stories
+   * @param summaries Array of summaries for the stories
+   * @param date Date string for the digest
+   * @returns Generated digest content
+   */
+  async generateDigest(
+    stories: HNStory[],
+    summaries: Summary[],
+    date: string,
+  ): Promise<{
+    content: string;
+    model: string;
+    tokens: { input: number; output: number };
+  }> {
+    // Prepare the input data for the LLM
+    const storiesData = stories.map((story, index) => {
+      const summary = summaries.find((s) => s.storyId === story.id);
+      return {
+        id: story.id,
+        title: story.title,
+        url: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
+        hnUrl: `https://news.ycombinator.com/item?id=${story.id}`,
+        score: story.score,
+        by: story.by,
+        summary: summary?.summary || "",
+        shortSummary: summary?.shortSummary || "",
+        keyPoints: summary?.keyPoints || [],
+        topics: summary?.topics || [],
+      };
+    });
+
+    // Convert stories to string format for the prompt
+    const storiesText = JSON.stringify(storiesData, null, 2);
+
+    // Prepare the prompt
+    const prompt = promptTemplates.dailyDigest
+      .replace("{{DATE}}", date)
+      .replace("{{STORIES}}", storiesText);
+
+    // Track the start time for performance monitoring
+    const startTime = Date.now();
+
+    // Get the generative model
+    const model = this.genAI.getGenerativeModel({
+      model: this.modelName,
+      generationConfig: {
+        temperature: API.GOOGLE_AI.DEFAULT_TEMPERATURE, // Lower temperature for more focused output
+      },
+      safetySettings: this.getSafetySettings(),
+    });
+
+    // Generate the digest
+    const result = await model.generateContent(prompt);
+    const response = await result.response;
+    const text = response.text();
+
+    // Track the end time
+    const endTime = Date.now();
+    logger.info(`Digest generation completed in ${endTime - startTime}ms`);
+
+    // Make a rough estimate of tokens used
+    const inputTokens = Math.ceil(
+      prompt.length / PROCESSING.TOKEN_ESTIMATION.CHARS_PER_TOKEN,
+    );
+    const outputTokens = Math.ceil(
+      text.length / PROCESSING.TOKEN_ESTIMATION.CHARS_PER_TOKEN,
+    );
+
+    // Return the generated digest
+    return {
+      content: text,
+      model: this.modelName,
+      tokens: {
+        input: inputTokens,
+        output: outputTokens,
+      },
+    };
+  }
+
   private estimateReadingTime(
     content: string,
     preCalculatedWordCount?: number,

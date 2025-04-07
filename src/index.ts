@@ -11,6 +11,7 @@ import { storyFetcherHandler } from "./workers/story-fetcher";
 import { contentProcessorHandler } from "./workers/content-processor";
 import { summaryGeneratorHandler } from "./workers/summary-generator";
 import { notificationSenderHandler } from "./workers/notification-sender";
+import { dailyDigestHandler } from "./workers/daily-digest";
 import { storiesHandler } from "./api/routes/stories";
 import { summariesHandler } from "./api/routes/summaries";
 import { workersHandler } from "./api/routes/workers";
@@ -35,6 +36,7 @@ const INTERVALS = {
   PROCESS_CONTENT: extractMinuteInterval(CRON.PROCESS_CONTENT),
   GENERATE_SUMMARIES: extractMinuteInterval(CRON.GENERATE_SUMMARIES),
   SEND_NOTIFICATIONS: extractMinuteInterval(CRON.SEND_NOTIFICATIONS),
+  DAILY_DIGEST: 1440, // Default to daily (1440 minutes)
 };
 
 // Worker names constants
@@ -43,6 +45,7 @@ const WORKERS = {
   CONTENT_PROCESSOR: "contentProcessor",
   SUMMARY_GENERATOR: "summaryGenerator",
   NOTIFICATION_SENDER: "notificationSender",
+  DAILY_DIGEST: "dailyDigest",
 };
 
 // Initialize the router
@@ -53,6 +56,7 @@ router.add("GET", "/cron/fetch-stories", storyFetcherHandler);
 router.add("GET", "/cron/process-content", contentProcessorHandler);
 router.add("GET", "/cron/generate-summaries", summaryGeneratorHandler);
 router.add("GET", "/cron/send-notifications", notificationSenderHandler);
+router.add("GET", "/cron/daily-digest", dailyDigestHandler);
 
 // Register API routes
 router.add("GET", "/api/stories", storiesHandler);
@@ -304,6 +308,65 @@ export default {
           }
         } catch (error) {
           logger.error("Error checking if notification sender should run", {
+            error,
+          });
+        }
+      }
+
+      // Run daily digest worker
+      if (INTERVALS.DAILY_DIGEST > 0) {
+        try {
+          const shouldRun = await storyRepo.shouldRunWorker(
+            WORKERS.DAILY_DIGEST,
+            INTERVALS.DAILY_DIGEST,
+          );
+
+          if (shouldRun) {
+            logger.info("Running daily digest generator", {
+              hasTelegramToken: !!env.TELEGRAM_BOT_TOKEN,
+              hasTelegramChatId: !!env.TELEGRAM_CHAT_ID,
+              hasDiscordWebhook: !!env.DISCORD_WEBHOOK_URL,
+            });
+
+            try {
+              // Create a dummy request for the daily digest handler
+              const digestRequest = new Request(
+                "https://hn-summarizer-production.rjiejin.workers.dev/cron/daily-digest",
+                {
+                  method: "GET",
+                  headers: {
+                    "X-Scheduled-Run": "true",
+                    "User-Agent": "CloudflareWorker/ScheduledEvent",
+                    "X-Cron-Task": "daily-digest",
+                    Host: "hn-summarizer-production.rjiejin.workers.dev",
+                  },
+                },
+              );
+
+              // Wrap in waitUntil to ensure completion
+              const digestPromise = dailyDigestHandler(digestRequest, env, ctx);
+              ctx.waitUntil(digestPromise);
+
+              // Also await directly to catch any immediate errors
+              await digestPromise;
+
+              await storyRepo.updateWorkerRunTime(WORKERS.DAILY_DIGEST);
+              workersRun.push(WORKERS.DAILY_DIGEST);
+            } catch (error) {
+              logger.error(`Error running ${WORKERS.DAILY_DIGEST}`, {
+                error,
+                errorType: error?.constructor?.name,
+                errorMessage: error?.message,
+                stack: error?.stack,
+              });
+            }
+          } else {
+            logger.debug(
+              "Skipping daily digest - not enough time elapsed since last run",
+            );
+          }
+        } catch (error) {
+          logger.error("Error checking if daily digest should run", {
             error,
           });
         }
