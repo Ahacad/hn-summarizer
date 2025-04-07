@@ -2,6 +2,32 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.6.0](https://github.com/Ahacad/hn-summarizer/compare/v0.5.1...v0.6.0) (2025-04-07)
+
+
+### Features
+
+* daily digest newspaper ([ea668f6](https://github.com/Ahacad/hn-summarizer/commit/ea668f65d7d32ff60f4d079930c430629e4a9da7))
+* using LLM now for the daily newspaper ([1b21df7](https://github.com/Ahacad/hn-summarizer/commit/1b21df7bed3cbbf0e35b1f147a78d46da0b03f25))
+
+
+### Bug Fixes
+
+* fix env problems when deploying ([13e10e6](https://github.com/Ahacad/hn-summarizer/commit/13e10e6b3b135865b47dcc4afa6d005b1b674086))
+
+
+### Styling
+
+* **discord:** add PDT time string for each message ([4c75698](https://github.com/Ahacad/hn-summarizer/commit/4c75698e45cf983202c17c640d7e2cb27ce6d39b))
+* **discord:** better message template ([38e832e](https://github.com/Ahacad/hn-summarizer/commit/38e832e077f32bd7630d3d4f10a0e273b32d4c67))
+* **discord:** remove emoji before x min read ([da8e045](https://github.com/Ahacad/hn-summarizer/commit/da8e0457db6d44314c7de6a92b157ccd8d05c811))
+* **discord:** remove topic icons ([dc4c739](https://github.com/Ahacad/hn-summarizer/commit/dc4c739b71cd6389dd336d731c4f0eb337017473))
+
+
+### Chores
+
+* **discord:** add summary model info to messages ([6aa2d06](https://github.com/Ahacad/hn-summarizer/commit/6aa2d06599b1cd3edc6d6bd8767660953612488a))
+
 ### [0.5.1](https://github.com/Ahacad/hn-summarizer/compare/v0.5.0...v0.5.1) (2025-04-07)
 
 
