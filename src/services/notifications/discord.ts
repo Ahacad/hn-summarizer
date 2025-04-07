@@ -53,10 +53,8 @@ export class DiscordNotifier {
       // Get emoji for score-based tier
       const scoreTierEmoji = this.getScoreTierEmoji(story.score);
 
-      // Format topics as a comma-separated list with topic emojis
-      const topicsWithEmojis = this.formatTopicsWithEmojis(
-        summary.topics || ["Tech"],
-      );
+      // Format topics without emojis
+      const formattedTopics = this.formatTopics(summary.topics || ["Tech"]);
 
       // Calculate reading time emoji
       const readingTimeEmoji = this.getReadingTimeEmoji(
@@ -86,7 +84,7 @@ export class DiscordNotifier {
                 : []),
               {
                 name: "🏷️ Topics",
-                value: topicsWithEmojis,
+                value: formattedTopics,
                 inline: true,
               },
               {
@@ -174,48 +172,13 @@ export class DiscordNotifier {
   }
 
   /**
-   * Format topics with relevant emojis
+   * Format topics without emojis
    */
-  private formatTopicsWithEmojis(topics: string[]): string {
-    // Map of common topics to emojis
-    const topicEmojiMap: Record<string, string> = {
-      Tech: "💻",
-      Technology: "💻",
-      AI: "🤖",
-      "Machine Learning": "🧠",
-      Science: "🔬",
-      Space: "🚀",
-      Astronomy: "🔭",
-      Programming: "👨‍💻",
-      Development: "👨‍💻",
-      Math: "🧮",
-      Mathematics: "🧮",
-      Physics: "⚛️",
-      Biology: "🧬",
-      Chemistry: "⚗️",
-      Medicine: "🩺",
-      Health: "🩺",
-      Business: "💼",
-      Finance: "💰",
-      Politics: "🏛️",
-      Security: "🔒",
-      Privacy: "🔐",
-      Climate: "🌍",
-      Environment: "🌱",
-      Energy: "⚡",
-      Education: "📚",
-      History: "📜",
-    };
-
+  private formatTopics(topics: string[]): string {
     // Limit to 5 topics max
     const limitedTopics = topics.slice(0, 5);
 
-    return limitedTopics
-      .map((topic) => {
-        const emoji = topicEmojiMap[topic] || "🔹";
-        return `${emoji} ${topic}`;
-      })
-      .join(" • ");
+    return limitedTopics.join(", ");
   }
 
   /**
