@@ -103,7 +103,7 @@ export class DiscordNotifier {
                 }
               : undefined,
             footer: {
-              text: `Posted by ${story.by} | ${formattedDate}`,
+              text: `Posted by ${story.by} | ${formattedDate} | Summarized by ${summary.model}`,
             },
             // Don't use Discord's automatic timestamp which shows as "Today at X"
             // timestamp: new Date().toISOString(),
