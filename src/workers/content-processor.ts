@@ -14,6 +14,9 @@ import { logger } from "../utils/logger";
 import { ENV } from "../config/environment";
 import { PROCESSING } from "../config/constants";
 
+// Default to much lower concurrency to avoid Cloudflare subrequest limits
+const DEFAULT_CONCURRENCY = 1;
+
 /**
  * Handler for the content processor worker
  */
@@ -32,7 +35,10 @@ export async function contentProcessorHandler(
 
     // Get batch size and concurrency limits from environment
     const batchSize = ENV.get("CONTENT_PROCESSOR_BATCH_SIZE");
-    const concurrencyLimit = ENV.get("CONTENT_PROCESSOR_CONCURRENCY");
+
+    // Use a lower default concurrency limit to avoid Cloudflare subrequest errors
+    const concurrencyLimit =
+      ENV.get("CONTENT_PROCESSOR_CONCURRENCY") || DEFAULT_CONCURRENCY;
 
     logger.debug("Content processor configuration", {
       batchSize,
@@ -42,7 +48,10 @@ export async function contentProcessorHandler(
     });
 
     // Get stories to process in priority order (retries first, then new)
-    const stories = await storyRepo.getStoriesForContentProcessing(batchSize);
+    // Limit the batch size to avoid overwhelming Cloudflare's limits
+    const maxBatchSize = Math.min(batchSize, 5); // Lower max batch size for safety
+    const stories =
+      await storyRepo.getStoriesForContentProcessing(maxBatchSize);
 
     // Count retries vs pending stories for logging
     const retryCount = stories.filter(
@@ -130,8 +139,8 @@ async function processStoriesWithConcurrency(
   let failureCount = 0;
   let retryCount = 0;
 
-  // Ensure concurrencyLimit is a valid number
-  const limit = Math.max(1, concurrencyLimit);
+  // Ensure concurrencyLimit is a valid number and cap it at a safe maximum
+  const limit = Math.min(Math.max(1, concurrencyLimit), 2); // Enforce maximum of 2 concurrent requests
 
   logger.debug("Processing with controlled concurrency", {
     totalStories: stories.length,
@@ -173,6 +182,11 @@ async function processStoriesWithConcurrency(
         });
         failureCount++;
       }
+    }
+
+    // Add a delay between batches to avoid rate limiting
+    if (i + limit < stories.length) {
+      await new Promise((resolve) => setTimeout(resolve, 2000));
     }
 
     logger.debug(
@@ -293,6 +307,24 @@ async function processStory(story, contentExtractor, storyRepo, contentRepo) {
 
     return { success: true, retry: false };
   } catch (error) {
+    // Special handling for Cloudflare subrequest limit errors
+    if (error.message === "Too many subrequests.") {
+      logger.warn("Hit Cloudflare subrequest limit, will retry", {
+        storyId: story.id,
+        retryCount: story.retryCount || 0,
+      });
+
+      const retryCount = story.retryCount || 0;
+
+      // Always retry for this specific error, with special error message
+      await storyRepo.markForExtractRetry(
+        story.id,
+        retryCount,
+        "Cloudflare subrequest limit reached - will retry later",
+      );
+      return { success: false, retry: true };
+    }
+
     logger.error("Error processing story content", {
       error,
       storyId: story.id,
