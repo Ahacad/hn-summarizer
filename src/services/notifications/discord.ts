@@ -3,7 +3,7 @@
  *
  * This module provides functions for sending notifications to Discord.
  * It handles formatting summaries for Discord and sending messages
- * through Discord webhooks.
+ * through Discord webhooks with an enhanced visual design.
  */
 
 import { WebhookClient, EmbedBuilder, Colors } from "discord.js";
@@ -50,51 +50,63 @@ export class DiscordNotifier {
       // Format a concise version of the summary that won't be cut off
       const conciseSummary = this.formatConciseSummary(summary.summary, 900);
 
-      // Format topics as a paragraph if available
-      const topicsText =
-        summary.topics && summary.topics.length > 0
-          ? `**Topics:** ${summary.topics.join(", ")}`
-          : "**Topics:** Tech";
+      // Get emoji for score-based tier
+      const scoreTierEmoji = this.getScoreTierEmoji(story.score);
 
-      // Create a simpler payload without using Discord.js
+      // Format topics as a comma-separated list with topic emojis
+      const topicsWithEmojis = this.formatTopicsWithEmojis(
+        summary.topics || ["Tech"],
+      );
+
+      // Calculate reading time emoji
+      const readingTimeEmoji = this.getReadingTimeEmoji(
+        summary.estimatedReadingTime || 5,
+      );
+
+      // Create payload with improved design
       const payload = {
         embeds: [
           {
-            title: `${story.title} | Score: ${story.score} ⭐`,
+            title: `${scoreTierEmoji} ${story.title} | ${story.score} points`,
             url: story.url,
-            description:
-              summary.shortSummary ||
-              this.formatConciseSummary(summary.summary, 300),
-            color: 0x0099ff, // A nicer blue
+            description: this.formatDescription(story, summary),
+            color: this.getColorByScore(story.score), // Dynamic color based on score
             fields: [
               {
-                name: "Summary",
+                name: "📝 Summary",
                 value: conciseSummary,
               },
               ...(summary.keyPoints && summary.keyPoints.length > 0
                 ? [
                     {
-                      name: "Key Points",
-                      value: summary.keyPoints
-                        .map((point) => `• ${point}`)
-                        .join("\n")
-                        .substring(0, 1024),
+                      name: "🔑 Key Points",
+                      value: this.formatKeyPoints(summary.keyPoints),
                     },
                   ]
                 : []),
               {
-                name: "Topics",
-                value: topicsText.replace("**Topics:** ", ""),
+                name: "🏷️ Topics",
+                value: topicsWithEmojis,
+                inline: true,
               },
               {
-                name: "Links",
-                value: `[HN Discussion](https://news.ycombinator.com/item?id=${story.id})${
-                  story.url ? ` | [Original Article](${story.url})` : ""
-                }`,
+                name: "⏱️ Reading Time",
+                value: `${readingTimeEmoji} ${summary.estimatedReadingTime || "?"} min read`,
+                inline: true,
+              },
+              {
+                name: "🔗 Links",
+                value: this.formatLinks(story),
               },
             ],
+            thumbnail: story.url
+              ? {
+                  // Use a favicon service to get website icon
+                  url: `https://www.google.com/s2/favicons?domain=${new URL(story.url).hostname}&sz=128`,
+                }
+              : undefined,
             footer: {
-              text: `Posted by: ${story.by} | ${summary.estimatedReadingTime || "?"} min read`,
+              text: `Posted by ${story.by} | HackerNews`,
             },
             timestamp: new Date().toISOString(),
           },
@@ -127,6 +139,126 @@ export class DiscordNotifier {
       });
       return false;
     }
+  }
+
+  /**
+   * Format description with a more engaging layout
+   */
+  private formatDescription(story: HNStory, summary: Summary): string {
+    const shortSummary =
+      summary.shortSummary || this.formatConciseSummary(summary.summary, 300);
+
+    // Add the short summary with a divider bar
+    return `${shortSummary}\n\n` + `━━━━━━━━━━━━━━━━━━━━━━━━`;
+  }
+
+  /**
+   * Format key points with styled bullets and improved spacing
+   */
+  private formatKeyPoints(keyPoints: string[]): string {
+    if (!keyPoints || keyPoints.length === 0) {
+      return "No key points provided.";
+    }
+
+    // Limit to 5 key points to prevent too long messages
+    const limitedPoints = keyPoints.slice(0, 5);
+    const formattedPoints = limitedPoints
+      .map((point) => `• ${point.trim()}`)
+      .join("\n\n");
+
+    // Add "and more..." if we truncated the list
+    const moreIndicator =
+      keyPoints.length > 5 ? "\n\n_...and more points_" : "";
+
+    return formattedPoints + moreIndicator;
+  }
+
+  /**
+   * Format topics with relevant emojis
+   */
+  private formatTopicsWithEmojis(topics: string[]): string {
+    // Map of common topics to emojis
+    const topicEmojiMap: Record<string, string> = {
+      Tech: "💻",
+      Technology: "💻",
+      AI: "🤖",
+      "Machine Learning": "🧠",
+      Science: "🔬",
+      Space: "🚀",
+      Astronomy: "🔭",
+      Programming: "👨‍💻",
+      Development: "👨‍💻",
+      Math: "🧮",
+      Mathematics: "🧮",
+      Physics: "⚛️",
+      Biology: "🧬",
+      Chemistry: "⚗️",
+      Medicine: "🩺",
+      Health: "🩺",
+      Business: "💼",
+      Finance: "💰",
+      Politics: "🏛️",
+      Security: "🔒",
+      Privacy: "🔐",
+      Climate: "🌍",
+      Environment: "🌱",
+      Energy: "⚡",
+      Education: "📚",
+      History: "📜",
+    };
+
+    // Limit to 5 topics max
+    const limitedTopics = topics.slice(0, 5);
+
+    return limitedTopics
+      .map((topic) => {
+        const emoji = topicEmojiMap[topic] || "🔹";
+        return `${emoji} ${topic}`;
+      })
+      .join(" • ");
+  }
+
+  /**
+   * Format links section with nice formatting
+   */
+  private formatLinks(story: HNStory): string {
+    const hnLink = `[📊 HN Discussion](https://news.ycombinator.com/item?id=${story.id})`;
+    const articleLink = story.url ? `[📄 Original Article](${story.url})` : "";
+
+    if (articleLink) {
+      return `${hnLink} • ${articleLink}`;
+    }
+    return hnLink;
+  }
+
+  /**
+   * Get an appropriate color based on the story score
+   */
+  private getColorByScore(score: number): number {
+    if (score >= 500) return 0xff5700; // High score - reddit orange
+    if (score >= 200) return 0xff9900; // Medium-high score - amber
+    if (score >= 100) return 0x57ae09; // Medium score - green
+    return 0x0099ff; // Default - blue
+  }
+
+  /**
+   * Get emoji tier based on score
+   */
+  private getScoreTierEmoji(score: number): string {
+    if (score >= 500) return "🏆"; // Trophy
+    if (score >= 300) return "🥇"; // Gold
+    if (score >= 200) return "🥈"; // Silver
+    if (score >= 100) return "🥉"; // Bronze
+    return "⭐"; // Default star
+  }
+
+  /**
+   * Get reading time emoji based on length
+   */
+  private getReadingTimeEmoji(minutes: number): string {
+    if (minutes >= 15) return "📚"; // Long read
+    if (minutes >= 8) return "📖"; // Medium read
+    return "📄"; // Short read
   }
 
   /**
@@ -168,8 +300,6 @@ export class DiscordNotifier {
       if (lastSpace > 0) {
         result = result.substring(0, lastSpace);
       }
-
-      // No ellipsis - we're ending at a complete sentence or word
     }
 
     return result.trim();
