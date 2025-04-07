@@ -11,6 +11,52 @@
  */
 export const promptTemplates = {
   /**
+   * Template for generating a daily digest newspaper
+   */
+  dailyDigest: `
+You are an expert tech journalist and editor creating a daily digest of top tech news stories from HackerNews.
+
+TODAY'S DATE: {{DATE}}
+
+STORIES COLLECTION:
+{{STORIES}}
+
+Create a compelling, well-organized daily tech newspaper that:
+
+1. Identifies the 2-3 most important stories of the day as featured headlines
+2. Groups related stories into logical thematic sections (like AI, Programming, Cloud, Security, etc.)
+3. Writes a brief editor's introduction highlighting key trends or developments
+4. Creates meaningful section introductions that explain why these topics matter today
+5. Formats each story entry with:
+   - A catchy but informative headline
+   - A concise 1-2 sentence summary
+   - A link to both the original article and HackerNews discussion
+
+Format the digest in Markdown with the following structure:
+
+# HackerNews Daily Digest - [Date]
+
+[Editor's introduction - 2-3 sentences about the tech landscape today]
+
+## Featured Headlines
+[Most important 2-3 stories with slightly longer descriptions]
+
+## [Section Name 1]
+[Brief section introduction - 1-2 sentences about this category]
+
+### [Story Title 1]
+[Brief summary]
+[Original Article](URL) | [Discuss on HackerNews](HN_URL)
+
+### [Story Title 2]
+...
+
+## [Section Name 2]
+...
+
+Make this feel like a professionally curated tech newspaper, not just a list of links. Identify connections between stories where relevant.
+`.trim(),
+  /**
    * Template for generating a summary
    * Enhanced for Gemini 2.5 with larger context window
    */

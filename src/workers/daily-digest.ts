@@ -13,6 +13,7 @@ import { ProcessingStatus } from "../types/story";
 import { Summary, SummaryFormat } from "../types/summary";
 import { TelegramNotifier } from "../services/notifications/telegram";
 import { DiscordNotifier } from "../services/notifications/discord";
+import { GoogleAISummarizer } from "../services/summarization/google-ai";
 import { logger } from "../utils/logger";
 import { metrics, MetricType } from "../utils/metrics";
 import { ENV } from "../config/environment";
@@ -170,11 +171,41 @@ export async function dailyDigestHandler(
         entry !== null,
     );
 
-    // Create the digest
-    const digest = createDigest(validEntries, config);
+    // Create a list of stories and summaries for the LLM
+    const storiesToProcess = validEntries.map((entry) => entry.story);
+    const summaries = validEntries.map((entry) => entry.summary);
 
-    // Format the digest
-    const formattedDigest = formatDigest(digest, config);
+    // Generate formatted date for the digest
+    const today = new Date().toLocaleDateString("en-US", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+
+    // Use Google AI to generate the digest
+    const googleAI = new GoogleAISummarizer();
+
+    logger.info(
+      `Generating AI-powered digest from ${validEntries.length} stories`,
+    );
+
+    // Generate the digest using LLM
+    const digestResult = await googleAI.generateDigest(
+      storiesToProcess,
+      summaries,
+      today,
+    );
+
+    // Track token usage
+    metrics.trackAPIUsage(
+      digestResult.tokens.input,
+      digestResult.tokens.output,
+      digestResult.model,
+    );
+
+    // Use the generated content
+    const formattedDigest = digestResult.content;
 
     // Send the digest via configured channels
     const results = {
@@ -279,264 +310,5 @@ export async function dailyDigestHandler(
   }
 }
 
-/**
- * Create a daily digest from stories and summaries
- */
-function createDigest(
-  entries: { story: any; summary: Summary }[],
-  config: DigestConfig,
-): DailyDigest {
-  const today = new Date().toLocaleDateString("en-US", {
-    weekday: "long",
-    year: "numeric",
-    month: "long",
-    day: "numeric",
-  });
-
-  // Extract all topics from summaries
-  const allTopics = new Set<string>();
-  entries.forEach(({ summary }) => {
-    summary.topics?.forEach((topic) => allTopics.add(topic));
-  });
-
-  // Determine the primary topic for each story
-  const storyTopics = entries.map(({ story, summary }) => {
-    // Use topics from summary if available, or dynamically assign one
-    const primaryTopic =
-      summary.topics && summary.topics.length > 0
-        ? summary.topics[0]
-        : assignTopicByTitle(story.title);
-
-    return {
-      story,
-      summary,
-      primaryTopic,
-    };
-  });
-
-  // Group stories by topic
-  const categoriesMap = new Map<string, StoryCategory>();
-
-  storyTopics.forEach(({ story, summary, primaryTopic }) => {
-    if (!categoriesMap.has(primaryTopic)) {
-      categoriesMap.set(primaryTopic, {
-        name: primaryTopic,
-        stories: [],
-      });
-    }
-
-    const category = categoriesMap.get(primaryTopic)!;
-
-    // Prepare story data for digest
-    category.stories.push({
-      title: story.title,
-      url: story.url,
-      hnUrl: `https://news.ycombinator.com/item?id=${story.id}`,
-      shortSummary:
-        summary.shortSummary || summary.summary.split(". ")[0] + ".",
-      topics: summary.topics,
-      score: story.score,
-    });
-  });
-
-  // Convert map to array and sort categories by number of stories
-  const categories = Array.from(categoriesMap.values())
-    .filter((category) => category.stories.length > 0)
-    .sort((a, b) => b.stories.length - a.stories.length);
-
-  // Sort stories within categories by score
-  categories.forEach((category) => {
-    category.stories.sort((a, b) => b.score - a.score);
-  });
-
-  // Create the digest
-  return {
-    date: today,
-    intro: `Today's digest features ${entries.length} top stories from HackerNews.`,
-    categories,
-    totalStories: entries.length,
-  };
-}
-
-/**
- * Format the digest based on the specified format
- */
-function formatDigest(digest: DailyDigest, config: DigestConfig): string {
-  // Format differs based on the desired output format
-  switch (config.format) {
-    case SummaryFormat.MARKDOWN:
-      return formatMarkdownDigest(digest, config);
-    case SummaryFormat.HTML:
-      return formatHtmlDigest(digest, config);
-    case SummaryFormat.TEXT:
-    default:
-      return formatTextDigest(digest, config);
-  }
-}
-
-/**
- * Format the digest as markdown
- */
-function formatMarkdownDigest(
-  digest: DailyDigest,
-  config: DigestConfig,
-): string {
-  let markdown = `# HackerNews Daily Digest - ${digest.date}\n\n`;
-
-  // Add intro
-  markdown += `${digest.intro}\n\n`;
-
-  // Add categories and stories
-  digest.categories.forEach((category) => {
-    markdown += `## ${category.name}\n\n`;
-
-    category.stories.forEach((story) => {
-      // Story title with link (if configured)
-      if (config.includeLinks && story.url) {
-        markdown += `### [${story.title}](${story.url})\n`;
-      } else {
-        markdown += `### ${story.title}\n`;
-      }
-
-      // Short summary
-      if (story.shortSummary) {
-        markdown += `${story.shortSummary}\n`;
-      }
-
-      // HackerNews link
-      markdown += `[Discuss on HackerNews](${story.hnUrl})\n\n`;
-    });
-  });
-
-  return markdown;
-}
-
-/**
- * Format the digest as HTML
- */
-function formatHtmlDigest(digest: DailyDigest, config: DigestConfig): string {
-  let html = `<h1>HackerNews Daily Digest - ${digest.date}</h1>`;
-
-  // Add intro
-  html += `<p>${digest.intro}</p>`;
-
-  // Add categories and stories
-  digest.categories.forEach((category) => {
-    html += `<h2>${category.name}</h2>`;
-
-    category.stories.forEach((story) => {
-      // Story title with link (if configured)
-      if (config.includeLinks && story.url) {
-        html += `<h3><a href="${story.url}">${story.title}</a></h3>`;
-      } else {
-        html += `<h3>${story.title}</h3>`;
-      }
-
-      // Short summary
-      if (story.shortSummary) {
-        html += `<p>${story.shortSummary}</p>`;
-      }
-
-      // HackerNews link
-      html += `<p><a href="${story.hnUrl}">Discuss on HackerNews</a></p>`;
-    });
-  });
-
-  return html;
-}
-
-/**
- * Format the digest as plain text
- */
-function formatTextDigest(digest: DailyDigest, config: DigestConfig): string {
-  let text = `HackerNews Daily Digest - ${digest.date}\n\n`;
-
-  // Add intro
-  text += `${digest.intro}\n\n`;
-
-  // Add categories and stories
-  digest.categories.forEach((category) => {
-    text += `== ${category.name} ==\n\n`;
-
-    category.stories.forEach((story) => {
-      // Story title
-      text += `${story.title}\n`;
-
-      // URL (if configured)
-      if (config.includeLinks && story.url) {
-        text += `${story.url}\n`;
-      }
-
-      // Short summary
-      if (story.shortSummary) {
-        text += `${story.shortSummary}\n`;
-      }
-
-      // HackerNews link
-      text += `Discuss: ${story.hnUrl}\n\n`;
-    });
-  });
-
-  return text;
-}
-
-/**
- * Assign a topic to a story based on its title
- * This is a fallback when no explicit topics are available
- */
-function assignTopicByTitle(title: string): string {
-  const titleLower = title.toLowerCase();
-
-  // Common tech topics to check for
-  const topicPatterns = [
-    {
-      pattern: /\b(ai|artificial intelligence|machine learning|ml|llm|gpt)\b/i,
-      topic: "AI & Machine Learning",
-    },
-    {
-      pattern: /\b(web|html|css|javascript|js|frontend|backend)\b/i,
-      topic: "Web Development",
-    },
-    {
-      pattern: /\b(blockchain|crypto|bitcoin|ethereum|nft)\b/i,
-      topic: "Blockchain & Crypto",
-    },
-    {
-      pattern: /\b(security|privacy|hack|exploit|vulnerability)\b/i,
-      topic: "Security & Privacy",
-    },
-    {
-      pattern: /\b(startup|funding|vc|venture)\b/i,
-      topic: "Startups & Business",
-    },
-    { pattern: /\b(mobile|android|ios|app)\b/i, topic: "Mobile" },
-    {
-      pattern: /\b(cloud|aws|azure|gcp|serverless)\b/i,
-      topic: "Cloud & Infrastructure",
-    },
-    {
-      pattern: /\b(data|analytics|sql|nosql|database)\b/i,
-      topic: "Data & Analytics",
-    },
-    {
-      pattern: /\b(python|java|go|rust|c\+\+|typescript)\b/i,
-      topic: "Programming Languages",
-    },
-    { pattern: /\b(ui|ux|design|user|interface)\b/i, topic: "Design & UI/UX" },
-    { pattern: /\b(game|gaming|unity|unreal)\b/i, topic: "Gaming" },
-    {
-      pattern: /\b(science|physics|biology|chemistry|math)\b/i,
-      topic: "Science",
-    },
-  ];
-
-  // Check for pattern matches
-  for (const { pattern, topic } of topicPatterns) {
-    if (pattern.test(titleLower)) {
-      return topic;
-    }
-  }
-
-  // Default topic if no pattern matches
-  return "Technology";
-}
+// Note: We no longer need manual digest creation and formatting functions
+// since we're using LLM-based generation
