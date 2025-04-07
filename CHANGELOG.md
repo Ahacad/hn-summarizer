@@ -2,6 +2,26 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.4.2](https://github.com/Ahacad/hn-summarizer/compare/v0.4.1...v0.4.2) (2025-04-07)
+
+
+### Features
+
+* update model to gemini 2.5 pro exp 0325, greatly increase input output token limit ([7505b4f](https://github.com/Ahacad/hn-summarizer/commit/7505b4fdc4747682265157728cb7376428220c4f))
+
+
+### Bug Fixes
+
+* trying to fix notification sending in cron jobs ([5db598d](https://github.com/Ahacad/hn-summarizer/commit/5db598d1cb1285193d9816546edef3c0c0badf82))
+* trying to fix subrequest problems for cloudflare ([a1df46e](https://github.com/Ahacad/hn-summarizer/commit/a1df46e9f3d6dd8f3489e2af6714df9bcfa8a1fe))
+
+
+### Chores
+
+* ignore errorlogs folder ([5b955ee](https://github.com/Ahacad/hn-summarizer/commit/5b955ee68f61606e27d628136a84b07742a70181))
+* ignore repomix-output.xml ([1fbc4c8](https://github.com/Ahacad/hn-summarizer/commit/1fbc4c84798f2558f71aa9d95bb8250fa4dfb0e7))
+* **wrangler.example.toml:** update max token num ([0f77dd1](https://github.com/Ahacad/hn-summarizer/commit/0f77dd119ce59092646f951c042edc8f8fe61cad))
+
 ### [0.4.1](https://github.com/Ahacad/hn-summarizer/compare/v0.4.0...v0.4.1) (2025-03-29)
 
 
