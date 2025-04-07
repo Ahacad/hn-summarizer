@@ -106,6 +106,11 @@ export const PROCESSING = {
     /** Default maximum number of retries */
     DEFAULT_MAX_RETRIES: 3,
   },
+
+  /**
+   * Worker intervals (in minutes)
+   */
+  DIGEST_INTERVAL_MINUTES: 1440, // Daily (24 hours)
 };
 
 /**
@@ -123,6 +128,9 @@ export const CRON = {
 
   /** Send notifications every 30 minutes */
   SEND_NOTIFICATIONS: "*/30 * * * *",
+
+  /** Generate daily digest at 8:00 AM daily */
+  DAILY_DIGEST: "0 8 * * *",
 };
 
 /**
@@ -161,4 +169,16 @@ export const ENV_DEFAULTS = {
 
   /** Default maximum retry attempts */
   MAX_RETRY_ATTEMPTS: 5,
+
+  /** Default maximum stories in daily digest */
+  DIGEST_MAX_STORIES: 30,
+
+  /** Default minimum stories required for digest */
+  DIGEST_MIN_STORIES: 5,
+
+  /** Default digest format */
+  DIGEST_FORMAT: "markdown",
+
+  /** Default digest grouping method */
+  DIGEST_GROUPING: "topic",
 };
