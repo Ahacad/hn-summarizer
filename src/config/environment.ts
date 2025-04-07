@@ -34,6 +34,12 @@ export interface EnvBindings {
   NOTIFICATION_SENDER_CONCURRENCY: number; // Separate concurrency for notifications
   SUMMARIZATION_MAX_TOKENS: number;
   MAX_RETRY_ATTEMPTS: number;
+
+  // Daily Digest Configuration
+  DIGEST_MAX_STORIES?: number;
+  DIGEST_MIN_STORIES?: number;
+  DIGEST_FORMAT?: string;
+  DIGEST_GROUPING?: string;
 }
 
 // Singleton class to access environment variables
@@ -112,6 +118,18 @@ export class ENV {
         env.MAX_RETRY_ATTEMPTS,
         ENV_DEFAULTS.MAX_RETRY_ATTEMPTS,
       ),
+
+      // Daily Digest Configuration
+      DIGEST_MAX_STORIES: this.parseNumericEnv(
+        env.DIGEST_MAX_STORIES,
+        ENV_DEFAULTS.DIGEST_MAX_STORIES,
+      ),
+      DIGEST_MIN_STORIES: this.parseNumericEnv(
+        env.DIGEST_MIN_STORIES,
+        ENV_DEFAULTS.DIGEST_MIN_STORIES,
+      ),
+      DIGEST_FORMAT: env.DIGEST_FORMAT || ENV_DEFAULTS.DIGEST_FORMAT,
+      DIGEST_GROUPING: env.DIGEST_GROUPING || ENV_DEFAULTS.DIGEST_GROUPING,
     };
 
     this.validateEnv();
@@ -142,6 +160,11 @@ export class ENV {
       SUMMARIZATION_MAX_TOKENS: this.instance.SUMMARIZATION_MAX_TOKENS,
 
       MAX_RETRY_ATTEMPTS: this.instance.MAX_RETRY_ATTEMPTS,
+
+      DIGEST_MAX_STORIES: this.instance.DIGEST_MAX_STORIES,
+      DIGEST_MIN_STORIES: this.instance.DIGEST_MIN_STORIES,
+      DIGEST_FORMAT: this.instance.DIGEST_FORMAT,
+      DIGEST_GROUPING: this.instance.DIGEST_GROUPING,
     });
   }
 
@@ -176,7 +199,20 @@ export class ENV {
    */
   static get<K extends keyof EnvBindings>(key: K): EnvBindings[K] {
     if (!this.instance) {
-      throw new Error("Environment not initialized");
+      logger.warn(`Environment accessed before initialization: ${String(key)}`);
+
+      // For string values, we can safely return defaults
+      if (typeof ENV_DEFAULTS[String(key)] === "string") {
+        return ENV_DEFAULTS[String(key)] as unknown as EnvBindings[K];
+      }
+
+      // For numeric values, return default if available
+      if (typeof ENV_DEFAULTS[String(key)] === "number") {
+        return ENV_DEFAULTS[String(key)] as unknown as EnvBindings[K];
+      }
+
+      // As a last resort, return a safe default (empty string for strings, 0 for numbers)
+      return "" as unknown as EnvBindings[K];
     }
     return this.instance[key];
   }

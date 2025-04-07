@@ -32,6 +32,11 @@ NOTIFICATION_SENDER_BATCH_SIZE = "5"
 NOTIFICATION_SENDER_CONCURRENCY = "3"
 SUMMARIZATION_MAX_TOKENS = "65536"  # Updated for Gemini 2.5 output token limit
 MAX_RETRY_ATTEMPTS = "5"
+# Daily Digest Configuration
+DIGEST_MAX_STORIES = "30"
+DIGEST_MIN_STORIES = "5"
+DIGEST_FORMAT = "markdown"
+DIGEST_GROUPING = "topic"
 
 # Production environment variables
 [env.production.vars]
@@ -46,6 +51,11 @@ NOTIFICATION_SENDER_BATCH_SIZE = "10"
 NOTIFICATION_SENDER_CONCURRENCY = "3"
 SUMMARIZATION_MAX_TOKENS = "65536"  # Updated for Gemini 2.5 output token limit
 MAX_RETRY_ATTEMPTS = "5"
+# Daily Digest Configuration
+DIGEST_MAX_STORIES = "30"
+DIGEST_MIN_STORIES = "5"
+DIGEST_FORMAT = "markdown"
+DIGEST_GROUPING = "topic"
 
 # D1 Database binding for production - duplicate the binding with the same values
 [[ env.production.d1_databases ]]
