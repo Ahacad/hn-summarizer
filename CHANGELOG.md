@@ -2,6 +2,19 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+## [0.5.0](https://github.com/Ahacad/hn-summarizer/compare/v0.4.2...v0.5.0) (2025-04-07)
+
+
+### Features
+
+* update story scores now when fetching ([4e369e2](https://github.com/Ahacad/hn-summarizer/commit/4e369e2e8bdceb03a10a2f56722f6864e9186669))
+* use cf builtin browser now rather than firecrawl ([3b8841b](https://github.com/Ahacad/hn-summarizer/commit/3b8841bf0920f432766a4c03192d1eefee9b5dc5))
+
+
+### Bug Fixes
+
+* fixing cf doesn't support jsdon and readability ([66b5c9b](https://github.com/Ahacad/hn-summarizer/commit/66b5c9b5fc34d3af3f37464827c368db7606e441))
+
 ### [0.4.2](https://github.com/Ahacad/hn-summarizer/compare/v0.4.1...v0.4.2) (2025-04-07)
 
 
