@@ -61,6 +61,10 @@ export class DiscordNotifier {
         summary.estimatedReadingTime || 5,
       );
 
+      // Format date in a compact way with PDT timezone
+      const timestamp = new Date();
+      const formattedDate = this.formatCompactDate(timestamp);
+
       // Create payload with improved design
       const payload = {
         embeds: [
@@ -104,9 +108,10 @@ export class DiscordNotifier {
                 }
               : undefined,
             footer: {
-              text: `Posted by ${story.by} | HackerNews`,
+              text: `Posted by ${story.by} | ${formattedDate}`,
             },
-            timestamp: new Date().toISOString(),
+            // Don't use Discord's automatic timestamp which shows as "Today at X"
+            // timestamp: new Date().toISOString(),
           },
         ],
       };
@@ -137,6 +142,24 @@ export class DiscordNotifier {
       });
       return false;
     }
+  }
+
+  /**
+   * Format a date in a compact format with PDT timezone
+   * Example: "2025-04-07 15:30 PDT"
+   */
+  private formatCompactDate(date: Date): string {
+    // Format date as YYYY-MM-DD
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+
+    // Format time as HH:MM
+    const hours = String(date.getHours()).padStart(2, "0");
+    const minutes = String(date.getMinutes()).padStart(2, "0");
+
+    // Use PDT as requested by the user
+    return `${year}-${month}-${day} ${hours}:${minutes} PDT`;
   }
 
   /**
