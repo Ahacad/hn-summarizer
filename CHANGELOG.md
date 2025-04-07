@@ -2,6 +2,13 @@
 
 All notable changes to this project will be documented in this file. See [standard-version](https://github.com/conventional-changelog/standard-version) for commit guidelines.
 
+### [0.5.1](https://github.com/Ahacad/hn-summarizer/compare/v0.5.0...v0.5.1) (2025-04-07)
+
+
+### Bug Fixes
+
+* trying to fix too many subrequests issue in cf ([48b81c7](https://github.com/Ahacad/hn-summarizer/commit/48b81c7b2800f4b9bba03ffdf6a988aee2a3316e))
+
 ## [0.5.0](https://github.com/Ahacad/hn-summarizer/compare/v0.4.2...v0.5.0) (2025-04-07)
 
 
