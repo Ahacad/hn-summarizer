@@ -32,36 +32,39 @@ Create a compelling, well-organized daily tech newspaper that:
    - A concise 1-2 sentence summary
    - A link to both the original article and HackerNews discussion
 
-Format the digest in Discord-compatible Markdown with the following structure:
+Format the digest in a way that is compatible with Telegraph's import format (HTML subset) with the following structure:
 
-**HackerNews Daily Digest - [Date]**
+<h2>HackerNews Daily Digest - [Date]</h2>
 
-[Editor's introduction - 2-3 sentences about the tech landscape today]
+<p>[Editor's introduction - 2-3 sentences about the tech landscape today]</p>
 
-**Featured Headlines**
+<h3>Featured Headlines</h3>
 [Most important 2-3 stories with slightly longer descriptions]
 
-**[Section Name 1]**
-[Brief section introduction - 1-2 sentences about this category]
+<h3>[Section Name 1]</h3>
+<p>[Brief section introduction - 1-2 sentences about this category]</p>
 
-__[Story Title 1]__
-[Brief summary]
-[Original Article](URL) | [Discuss on HackerNews](HN_URL)
+<h4>[Story Title 1]</h4>
+<p>[Brief summary]</p>
+<p><a href="URL">Original Article</a> | <a href="HN_URL">Discuss on HackerNews</a></p>
 
-__[Story Title 2]__
+<h4>[Story Title 2]</h4>
 ...
 
-**[Section Name 2]**
+<h3>[Section Name 2]</h3>
 ...
 
 Make this feel like a professionally curated tech newspaper, not just a list of links. Identify connections between stories where relevant.
 
 IMPORTANT FORMAT GUIDELINES:
-1. Keep the total output under 7000 characters to avoid truncation
-2. For Discord compatibility, use ** and __ for formatting headers, not # symbols
-3. Keep section introductions very concise (1-2 sentences maximum)
-4. Limit the number of featured headlines to 3 maximum
-5. Ensure each story summary is no more than 3 lines
+1. Use H2 for the main title, H3 for section headers, and H4 for story titles. Use <p> tags for paragraphs.
+2. Use the exact HTML format '<a href="URL">Original Article</a> | <a href="HN_URL">Discuss on HackerNews</a>' for the links below each story summary. Do NOT use Markdown links.
+3. Keep section introductions very concise (1-2 sentences maximum).
+4. Limit the number of featured headlines to 3 maximum.
+5. Ensure each story summary is no more than 3 lines.
+6. DO NOT use Markdown code blocks with backticks. If you need to show code or HTML examples, wrap them in <pre> tags directly instead of using backticks.
+7. IMPORTANT: Never start the digest with a code block or backticks, as this causes formatting issues.
+8. DO NOT include the code/markup itself at the beginning of the digest - just start with your actual content.
 `.trim(),
   /**
    * Template for generating a summary

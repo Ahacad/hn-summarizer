@@ -10,6 +10,7 @@
 import { StoryRepository } from "../storage/d1/story-repository";
 import { ContentRepository } from "../storage/r2/content-repository";
 // We'll use direct API calls instead of the telegra.ph package
+import * as cheerio from "cheerio";
 
 /**
  * Helper function to check if this is a direct access via curl
@@ -132,24 +133,510 @@ async function createTelegraphAccount(
 }
 
 /**
- * Format content for Telegraph
- * This creates a simple node structure for Telegraph API
+ * Convert markdown to Telegraph node structure
  *
- * @param content The content to format
- * @returns Content formatted for Telegraph API
+ * @param markdown The markdown content to convert
+ * @returns Content formatted as Telegraph nodes
  */
-function formatContentForTelegraph(content: string): any[] {
-  // For simplicity, we'll just wrap the content in a paragraph
-  // In a more advanced implementation, you'd parse markdown/HTML
-  // and convert to Telegraph's node structure
-
-  // Telegraph expects an array of node objects
-  return [
-    {
-      tag: "p",
-      children: [content],
+function formatContentForTelegraph(markdown: string): any[] {
+  // First, look for any code blocks with triple backticks and handle them specifically
+  const cleanedMarkdown = markdown.replace(
+    /```[\w]*\s*([\s\S]*?)```/g,
+    (match, codeContent) => {
+      // Replace code blocks with a special marker that won't be affected by the paragraph split
+      return `CODE_BLOCK_MARKER${codeContent.trim()}CODE_BLOCK_MARKER`;
     },
-  ];
+  );
+
+  // Split content by double newlines to separate paragraphs
+  const paragraphs = cleanedMarkdown.split(/\n\n+/);
+
+  // Process each paragraph into a Telegraph node
+  return paragraphs
+    .map((paragraph) => {
+      // Skip empty paragraphs
+      if (!paragraph.trim()) {
+        return null;
+      }
+
+      // Check if it's our marked code block
+      if (paragraph.includes("CODE_BLOCK_MARKER")) {
+        const code = paragraph.replace(
+          /CODE_BLOCK_MARKER(.*)CODE_BLOCK_MARKER/s,
+          "$1",
+        );
+        return {
+          tag: "pre",
+          children: [code],
+        };
+      }
+
+      // Check if it's a heading with # symbols
+      const headingMatch = paragraph.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length; // Number of # symbols
+        const text = headingMatch[2].trim();
+
+        // Telegraph supports h3 and h4 tags
+        if (level <= 2) {
+          return { tag: "h3", children: [text] };
+        } else {
+          return { tag: "h4", children: [text] };
+        }
+      }
+
+      // Check if it's a title with double underscores, possibly with a score
+      // First, check the exact format from the prompt template: __[Story Title]__
+      const titleMatch = paragraph.match(/^__([^_]+)__$/);
+      if (titleMatch) {
+        // Extract the title text
+        const titleText = titleMatch[1].trim();
+
+        // Check if title contains a score in parentheses
+        const scoreMatch = titleText.match(/(.+?)\s*\(Score:\s*(\d+)\)$/);
+
+        if (scoreMatch) {
+          // If there's a score, format the title with the score slightly smaller
+          const actualTitle = scoreMatch[1].trim();
+          const score = scoreMatch[2];
+
+          return {
+            tag: "h4",
+            children: [
+              actualTitle,
+              " ",
+              {
+                tag: "span",
+                attrs: { style: "font-size: 0.8em; color: #666;" },
+                children: [`(Score: ${score})`],
+              },
+            ],
+          };
+        } else {
+          // Regular title without score
+          return { tag: "h4", children: [titleText] };
+        }
+      }
+
+      // Check for bold text using double underscores that might be inline
+      const inlineBoldMatch = paragraph.match(/__([^_]+)__/);
+      if (inlineBoldMatch) {
+        // Process the paragraph with our updated bold/italic handler
+        return { tag: "p", children: processBoldAndItalic(paragraph) };
+      }
+
+      // Check for alternate possible title formats that might be generated
+      // These could be titles without the double underscore format
+      const altTitleScoreMatch = paragraph.match(
+        /^([^(]+)\s*\(Score:\s*(\d+)\)$/,
+      );
+      if (altTitleScoreMatch) {
+        const actualTitle = altTitleScoreMatch[1].trim();
+        const score = altTitleScoreMatch[2];
+
+        return {
+          tag: "h4",
+          children: [
+            actualTitle,
+            " ",
+            {
+              tag: "span",
+              attrs: { style: "font-size: 0.8em; color: #666;" },
+              children: [`(Score: ${score})`],
+            },
+          ],
+        };
+      }
+
+      // Check if it's a code block with triple backticks
+      const codeBlockMatch = paragraph.match(
+        /^```([\w]*)\s*\n([\s\S]*)\n```\s*$/,
+      );
+      if (codeBlockMatch) {
+        const language = codeBlockMatch[1]; // Optional language specifier
+        const code = codeBlockMatch[2].trim();
+
+        // For Telegraph, we'll use pre tags for code blocks
+        return {
+          tag: "pre",
+          children: [code],
+        };
+      }
+
+      // Check if it's a list
+      if (
+        paragraph.trim().startsWith("- ") ||
+        paragraph.trim().startsWith("* ")
+      ) {
+        // Split into list items
+        const items = paragraph
+          .split(/\n- |\n\* /)
+          .map((item) => item.replace(/^- |^\* /, "").trim())
+          .filter(Boolean);
+
+        // Create list items
+        const listItems = items.map((item) => {
+          return {
+            tag: "li",
+            children: [item],
+          };
+        });
+
+        return {
+          tag: "ul",
+          children: listItems,
+        };
+      }
+
+      // First, check if paragraph starts with "**" and ends with "**" - likely a section header
+      if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
+        const headerText = paragraph.substring(2, paragraph.length - 2).trim();
+        return { tag: "h3", children: [headerText] };
+      }
+
+      // Process links [text](url)
+      let processedPara = paragraph;
+      let linkMatches = [];
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let match;
+
+      // Find all links
+      while ((match = linkRegex.exec(paragraph)) !== null) {
+        linkMatches.push({
+          fullMatch: match[0],
+          text: match[1],
+          url: match[2],
+          index: match.index,
+        });
+      }
+
+      // If there are links, we need to split the paragraph
+      if (linkMatches.length > 0) {
+        const fragments = [];
+        let lastIndex = 0;
+
+        for (const link of linkMatches) {
+          // Add text before the link
+          if (link.index > lastIndex) {
+            const beforeText = paragraph.substring(lastIndex, link.index);
+            // Check if this fragment has bold formatting
+            if (beforeText.includes("__")) {
+              const processed = processBoldAndItalic(beforeText);
+              if (Array.isArray(processed)) {
+                fragments.push(...processed);
+              } else {
+                fragments.push(processed);
+              }
+            } else {
+              fragments.push(beforeText);
+            }
+          }
+
+          // Add the link
+          fragments.push({
+            tag: "a",
+            attrs: { href: link.url },
+            children: [link.text],
+          });
+
+          lastIndex = link.index + link.fullMatch.length;
+        }
+
+        // Add remaining text
+        if (lastIndex < paragraph.length) {
+          const afterText = paragraph.substring(lastIndex);
+          // Check if this fragment has bold formatting
+          if (afterText.includes("__")) {
+            const processed = processBoldAndItalic(afterText);
+            if (Array.isArray(processed)) {
+              fragments.push(...processed);
+            } else {
+              fragments.push(processed);
+            }
+          } else {
+            fragments.push(afterText);
+          }
+        }
+
+        return { tag: "p", children: fragments };
+      }
+
+      // Check for bold and italic
+      processedPara = processBoldAndItalic(paragraph);
+
+      // Regular paragraph
+      if (typeof processedPara === "string") {
+        return { tag: "p", children: [processedPara] };
+      } else {
+        return { tag: "p", children: processedPara };
+      }
+    })
+    .filter(Boolean); // Remove null nodes
+}
+
+/**
+ * Process bold and italic formatting
+ *
+ * @param text Text to process
+ * @returns Processed text or array of nodes
+ */
+function processBoldAndItalic(text: string): string | any[] {
+  // Check for bold (**text** or __text__)
+  const boldRegex = /\*\*([^*]+)\*\*|__([^_]+)__/g;
+  const italicRegex = /\*([^*]+)\*/g;
+
+  // If no formatting, return as is
+  if (!boldRegex.test(text) && !italicRegex.test(text)) {
+    return text;
+  }
+
+  // Handle bold text
+  const fragments = [];
+  let lastIndex = 0;
+  let match;
+
+  // Reset regex
+  boldRegex.lastIndex = 0;
+
+  // Process bold (both ** and __)
+  while ((match = boldRegex.exec(text)) !== null) {
+    // Add text before the bold part
+    if (match.index > lastIndex) {
+      fragments.push(text.substring(lastIndex, match.index));
+    }
+
+    // Get the content of the bold section
+    const boldContent = match[1] || match[2]; // match[1] for ** format, match[2] for __ format
+
+    // Check if the bold content contains a score
+    const scoreMatch = boldContent.match(/(.+?)\s*\(Score:\s*(\d+)\)$/);
+
+    if (scoreMatch) {
+      // If there's a score, format it with the score slightly smaller
+      const actualTitle = scoreMatch[1].trim();
+      const score = scoreMatch[2];
+
+      // For story titles, use h4 tag instead of b tag when they're in double underscore format
+      if (match[0].startsWith("__")) {
+        fragments.push({
+          tag: "h4",
+          children: [
+            actualTitle,
+            " ",
+            {
+              tag: "span",
+              attrs: { style: "font-size: 0.8em; color: #666;" },
+              children: [`(Score: ${score})`],
+            },
+          ],
+        });
+      } else {
+        // Regular bold text with score
+        fragments.push({
+          tag: "b",
+          children: [
+            actualTitle,
+            " ",
+            {
+              tag: "span",
+              attrs: { style: "font-size: 0.8em; color: #666;" },
+              children: [`(Score: ${score})`],
+            },
+          ],
+        });
+      }
+    } else {
+      // For story titles, use h4 tag instead of b tag when they're in double underscore format
+      if (match[0].startsWith("__")) {
+        fragments.push({
+          tag: "h4",
+          children: [boldContent],
+        });
+      } else {
+        // Regular bold text without score
+        fragments.push({
+          tag: "b",
+          children: [boldContent],
+        });
+      }
+    }
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    fragments.push(text.substring(lastIndex));
+  }
+
+  return fragments;
+}
+
+/**
+ * Convert HTML to Telegraph Node format
+ *
+ * @param html HTML content to convert
+ * @returns Array of Telegraph Node objects
+ */
+function htmlToTelegraphNodes(html: string): any[] {
+  // Use cheerio to parse HTML (like jQuery for Node.js)
+  const $ = cheerio.load(html);
+  const result: any[] = [];
+
+  // Process each top-level element
+  $("body")
+    .children()
+    .each((_, element) => {
+      const node = elementToNode($(element));
+      if (node) {
+        result.push(node);
+      }
+    });
+
+  return result;
+
+  // Helper function to convert a cheerio element to a Telegraph node
+  function elementToNode($element: cheerio.Cheerio): any | null {
+    // Get the tag name
+    const tagName = $element.get(0).tagName.toLowerCase();
+
+    // Map of allowed tags in Telegraph
+    const allowedTags = [
+      "a",
+      "aside",
+      "b",
+      "blockquote",
+      "br",
+      "code",
+      "em",
+      "figcaption",
+      "figure",
+      "h3",
+      "h4",
+      "hr",
+      "i",
+      "iframe",
+      "img",
+      "li",
+      "ol",
+      "p",
+      "pre",
+      "s",
+      "strong",
+      "u",
+      "ul",
+      "video",
+    ];
+
+    // Convert tag if needed
+    let finalTag = tagName;
+    if (!allowedTags.includes(tagName)) {
+      // Map unsupported tags to appropriate alternatives
+      if (tagName === "h1" || tagName === "h2") {
+        finalTag = "h3";
+      } else if (tagName === "h5" || tagName === "h6") {
+        finalTag = "h4";
+      } else if (tagName === "div") {
+        finalTag = "p";
+      } else if (tagName === "span") {
+        // For spans, we'll just return the text content
+        return $element.text();
+      } else {
+        finalTag = "p";
+      }
+    }
+
+    // Remove any score information from headers (h3, h4)
+    if (finalTag === "h3" || finalTag === "h4") {
+      const text = $element.text();
+      if (text.includes("(Score:")) {
+        $element.text(text.replace(/\s*\(Score:\s*\d+\)\s*$/g, ""));
+      }
+    }
+
+    // Create the node object
+    const node: any = {
+      tag: finalTag,
+    };
+
+    // Add allowed attributes (only href and src are allowed in Telegraph)
+    const attrs: any = {};
+    let hasAttrs = false;
+
+    if ($element.attr("href")) {
+      attrs.href = $element.attr("href");
+      hasAttrs = true;
+    }
+
+    if ($element.attr("src")) {
+      attrs.src = $element.attr("src");
+      hasAttrs = true;
+    }
+
+    if (hasAttrs) {
+      node.attrs = attrs;
+    }
+
+    // Process children
+    const children: any[] = [];
+
+    // Special case for elements with only text
+    if ($element.children().length === 0) {
+      const text = $element.text().trim();
+      if (text) {
+        children.push(text);
+      } else if (tagName === "br" || tagName === "hr") {
+        // Empty elements like br/hr are valid
+      } else {
+        // Empty elements with no purpose can be skipped
+        return null;
+      }
+    } else {
+      // Process mixed content (text nodes and elements)
+      $element.contents().each((_, child) => {
+        if (child.type === "text") {
+          const text = $(child).text().trim();
+          if (text) {
+            children.push(text);
+          }
+        } else if (child.type === "tag") {
+          const childNode = elementToNode($(child));
+          if (childNode) {
+            children.push(childNode);
+          }
+        }
+      });
+    }
+
+    if (children.length > 0) {
+      node.children = children;
+    }
+
+    // Special handling for links - add a newline before links to Original Article/HackerNews
+    if (finalTag === "p") {
+      // Check if this paragraph contains links to original article and HN discussion
+      const html = $element.html() || "";
+      const text = $element.text() || "";
+      if (
+        html &&
+        (html.includes("Original Article") ||
+          html.includes("Discuss on HackerNews"))
+      ) {
+        // Add a <br> tag before the links for a simple line break
+        return {
+          tag: "p",
+          children: [
+            {
+              tag: "br",
+              children: [],
+            },
+          ].concat(children),
+        };
+      }
+    }
+
+    return node;
+  }
 }
 
 /**
@@ -157,7 +644,7 @@ function formatContentForTelegraph(content: string): any[] {
  *
  * @param accessToken Telegraph access token
  * @param title Title of the page
- * @param content Content in Telegraph format
+ * @param content Content in HTML format
  * @param authorName Name of the author
  * @returns URL of the created page
  */
@@ -168,7 +655,21 @@ async function createTelegraphPage(
   authorName: string = "HackerNews Digest",
 ): Promise<string> {
   try {
-    const contentNodes = formatContentForTelegraph(content);
+    // Clean up any remaining backtick code blocks at the beginning of the content
+    // This acts as a failsafe in case the AI-generated content still has code blocks
+    const cleanedContent = content.replace(/^\s*```[\w]*[\s\S]*?```\s*/m, "");
+
+    // First try to parse as HTML, if that fails, fall back to the markdown parser
+    let contentNodes;
+    try {
+      contentNodes = htmlToTelegraphNodes(cleanedContent);
+      logger.info("Successfully parsed content as HTML");
+    } catch (error) {
+      logger.warn("Failed to parse as HTML, falling back to markdown parser", {
+        error,
+      });
+      contentNodes = formatContentForTelegraph(cleanedContent);
+    }
 
     const response = await fetch(`${TELEGRAPH_API_BASE}/createPage`, {
       method: "POST",
@@ -492,7 +993,7 @@ export async function dailyDigestHandler(
         // Create a dummy summary object with the Telegraph link
         const discordSummary: Summary = {
           storyId: 0,
-          summary: `📰 **HackerNews Daily Digest is ready!**\n\nRead today's tech news digest here: ${telegraphUrl}\n\n_Powered by AI - Includes ${validEntries.length} top stories_`,
+          summary: `📰 **HackerNews Daily Digest is ready!**\n\nRead today's tech news digest here: ${telegraphUrl}\n\n_Powered by AI - Includes ${validEntries.length} top stories with HackerNews scores_`,
           model: digestResult.model,
           inputTokens: digestResult.tokens.input,
           outputTokens: digestResult.tokens.output,
