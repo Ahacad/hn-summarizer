@@ -138,8 +138,17 @@ async function createTelegraphAccount(
  * @returns Content formatted as Telegraph nodes
  */
 function formatContentForTelegraph(markdown: string): any[] {
+  // First, look for any code blocks with triple backticks and handle them specifically
+  const cleanedMarkdown = markdown.replace(
+    /```[\w]*\s*([\s\S]*?)```/g,
+    (match, codeContent) => {
+      // Replace code blocks with a special marker that won't be affected by the paragraph split
+      return `CODE_BLOCK_MARKER${codeContent.trim()}CODE_BLOCK_MARKER`;
+    },
+  );
+
   // Split content by double newlines to separate paragraphs
-  const paragraphs = markdown.split(/\n\n+/);
+  const paragraphs = cleanedMarkdown.split(/\n\n+/);
 
   // Process each paragraph into a Telegraph node
   return paragraphs
@@ -147,6 +156,18 @@ function formatContentForTelegraph(markdown: string): any[] {
       // Skip empty paragraphs
       if (!paragraph.trim()) {
         return null;
+      }
+
+      // Check if it's our marked code block
+      if (paragraph.includes("CODE_BLOCK_MARKER")) {
+        const code = paragraph.replace(
+          /CODE_BLOCK_MARKER(.*)CODE_BLOCK_MARKER/s,
+          "$1",
+        );
+        return {
+          tag: "pre",
+          children: [code],
+        };
       }
 
       // Check if it's a heading with # symbols
@@ -466,7 +487,11 @@ async function createTelegraphPage(
   authorName: string = "HackerNews Digest",
 ): Promise<string> {
   try {
-    const contentNodes = formatContentForTelegraph(content);
+    // Clean up any remaining backtick code blocks at the beginning of the content
+    // This acts as a failsafe in case the AI-generated content still has code blocks
+    const cleanedContent = content.replace(/^\s*```[\w]*[\s\S]*?```\s*/m, "");
+
+    const contentNodes = formatContentForTelegraph(cleanedContent);
 
     const response = await fetch(`${TELEGRAPH_API_BASE}/createPage`, {
       method: "POST",

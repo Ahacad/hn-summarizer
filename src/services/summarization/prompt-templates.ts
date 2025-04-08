@@ -63,6 +63,8 @@ IMPORTANT FORMAT GUIDELINES:
 4. Limit the number of featured headlines to 3 maximum.
 5. Ensure each story summary is no more than 3 lines.
 6. DO NOT use Markdown code blocks with backticks. If you need to show code or HTML examples, wrap them in <pre> tags directly instead of using backticks.
+7. IMPORTANT: Never start the digest with a code block or backticks, as this causes formatting issues.
+8. DO NOT include the code/markup itself at the beginning of the digest - just start with your actual content.
 `.trim(),
   /**
    * Template for generating a summary
