@@ -9,6 +9,8 @@
 
 import { StoryRepository } from "../storage/d1/story-repository";
 import { ContentRepository } from "../storage/r2/content-repository";
+// Import Telegraph API client
+import Telegraph from "telegra.ph";
 
 /**
  * Helper function to check if this is a direct access via curl
@@ -86,6 +88,72 @@ interface DailyDigest {
 
   /** Total number of stories */
   totalStories: number;
+}
+
+/**
+ * Convert HTML/Markdown content to Telegraph node format
+ *
+ * @param content The content to convert
+ * @returns Array of Telegraph node objects
+ */
+function convertToTelegraphFormat(content: string): any[] {
+  // This is a basic implementation
+  // In a more robust solution, you'd use a proper markdown/HTML parser
+  // and convert each element to the appropriate Telegraph node structure
+
+  // For now, we'll simply wrap the content in a paragraph node
+  return [
+    {
+      tag: "p",
+      children: [content],
+    },
+  ];
+}
+
+/**
+ * Publish content to Telegraph and get the URL
+ *
+ * @param title Title of the Telegraph page
+ * @param content Content in Telegraph node format
+ * @param authorName Name of the author
+ * @returns URL of the created Telegraph page
+ */
+async function publishToTelegraph(
+  title: string,
+  content: string,
+  authorName: string = "HackerNews Digest",
+): Promise<string> {
+  try {
+    const client = new Telegraph();
+
+    // Create an account or use existing token
+    let token = ENV.get("TELEGRAPH_ACCESS_TOKEN");
+
+    if (!token) {
+      logger.info("Creating new Telegraph account");
+      const account = await client.createAccount({
+        short_name: "HackerNewsDigest",
+        author_name: authorName,
+      });
+      token = account.access_token;
+      logger.info(
+        "New Telegraph token created. Consider saving this to your environment variables.",
+        { token },
+      );
+    } else {
+      client.token = token;
+    }
+
+    // Create a Telegraph page
+    const contentNodes = convertToTelegraphFormat(content);
+    const page = await client.createPage(title, contentNodes, authorName);
+
+    logger.info("Published digest to Telegraph", { url: page.url });
+    return page.url;
+  } catch (error) {
+    logger.error("Error publishing to Telegraph", error);
+    throw error;
+  }
 }
 
 /**
@@ -232,7 +300,11 @@ export async function dailyDigestHandler(
     // Send the digest via configured channels
     const results = {
       telegram: { sent: false, error: null as string | null },
-      discord: { sent: false, error: null as string | null },
+      discord: {
+        sent: false,
+        error: null as string | null,
+        telegraphUrl: null as string | null,
+      },
     };
 
     if (telegramNotifier.isConfigured()) {
@@ -276,36 +348,64 @@ export async function dailyDigestHandler(
 
     if (discordNotifier.isConfigured()) {
       try {
+        // Format the date for the title
+        const dateString = new Date().toLocaleDateString("en-US", {
+          weekday: "long",
+          year: "numeric",
+          month: "long",
+          day: "numeric",
+        });
+
+        const title = `HackerNews Daily Digest - ${dateString}`;
+
+        // Publish the digest to Telegraph
+        const telegraphUrl = await publishToTelegraph(
+          title,
+          formattedDigest,
+          "HackerNews Summarizer",
+        );
+
         // Create a dummy story object for the notifier
         const dummyStory: HNStory = {
           id: 0,
           type: "story",
           by: "HackerNews Digest",
           time: Math.floor(Date.now() / 1000),
-          title: `HackerNews Daily Digest - ${new Date().toLocaleDateString()}`,
+          title: title,
           score: 0,
         };
 
-        // Create a dummy summary object for the notifier
-        const dummySummary: Summary = {
+        // Create a dummy summary object with the Telegraph link
+        const discordSummary: Summary = {
           storyId: 0,
-          summary: formattedDigest,
-          model: "digest",
-          inputTokens: 0,
-          outputTokens: 0,
+          summary: `📰 **HackerNews Daily Digest is ready!**\n\nRead today's tech news digest here: ${telegraphUrl}\n\n_Powered by AI - Includes ${validEntries.length} top stories_`,
+          model: digestResult.model,
+          inputTokens: digestResult.tokens.input,
+          outputTokens: digestResult.tokens.output,
           generatedAt: new Date().toISOString(),
         };
 
         const sent = await discordNotifier.sendSummary(
           dummyStory,
-          dummySummary,
+          discordSummary,
         );
-        results.discord.sent = sent;
+
+        // Add the Telegraph URL to the results
+        results.discord = {
+          sent: sent,
+          error: null as string | null,
+          telegraphUrl: telegraphUrl,
+        };
+
         if (sent) {
           metrics.increment(MetricType.NOTIFICATION_SENT);
         }
       } catch (error) {
-        results.discord.error = (error as Error).message;
+        results.discord = {
+          sent: false,
+          error: (error as Error).message,
+          telegraphUrl: null,
+        };
         logger.error("Failed to send digest to Discord", error);
       }
     }
@@ -319,6 +419,7 @@ export async function dailyDigestHandler(
         stories: validEntries.length,
         results,
         directAccess: isDirectCurlAccess(request),
+        telegraphUrl: results.discord.telegraphUrl || null,
       }),
       { status: 200 },
     );
