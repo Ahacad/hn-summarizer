@@ -47,6 +47,14 @@ export class DiscordNotifier {
     }
 
     try {
+      // Check if this is a daily digest (has ID 0)
+      const isDailyDigest = story.id === 0;
+
+      if (isDailyDigest) {
+        return this.sendDailyDigest(story, summary);
+      }
+
+      // Regular summary logic for individual stories
       // Format a concise version of the summary that won't be cut off
       const conciseSummary = this.formatConciseSummary(summary.summary, 900);
 
@@ -137,6 +145,107 @@ export class DiscordNotifier {
       });
       return false;
     }
+  }
+
+  /**
+   * Send a daily digest to Discord
+   * This handles the special case of sending a longer markdown text
+   * by splitting it into multiple messages if necessary
+   */
+  private async sendDailyDigest(
+    story: HNStory,
+    summary: Summary,
+  ): Promise<boolean> {
+    try {
+      // Split the digest content into chunks of 1800 characters (below Discord's 2000 limit)
+      // but ensure we don't split in the middle of a line
+      const chunks = this.chunkText(summary.summary, 1800);
+
+      logger.info(`Sending daily digest to Discord in ${chunks.length} parts`);
+
+      // Send each chunk as a separate message
+      for (let i = 0; i < chunks.length; i++) {
+        const payload = {
+          content: chunks[i],
+          // Only add the title for the first chunk
+          ...(i === 0 && {
+            username: "HackerNews Daily Digest",
+            avatar_url: "https://news.ycombinator.com/favicon.ico",
+          }),
+        };
+
+        // Send to Discord webhook
+        const response = await fetch(this.webhookUrl!, {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(payload),
+        });
+
+        if (!response.ok) {
+          logger.warn(`Failed to send digest part ${i + 1}/${chunks.length}`, {
+            status: response.status,
+            statusText: response.statusText,
+          });
+          return false;
+        }
+
+        // Add a small delay between messages to prevent rate limiting
+        if (i < chunks.length - 1) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+        }
+      }
+
+      logger.info("Daily digest sent to Discord successfully");
+      return true;
+    } catch (error) {
+      logger.error("Error sending daily digest to Discord", { error });
+      return false;
+    }
+  }
+
+  /**
+   * Split text into chunks at natural break points
+   */
+  private chunkText(text: string, maxChunkSize: number): string[] {
+    // If text is smaller than chunk size, return it as is
+    if (text.length <= maxChunkSize) {
+      return [text];
+    }
+
+    const chunks: string[] = [];
+    let remainingText = text;
+
+    while (remainingText.length > 0) {
+      if (remainingText.length <= maxChunkSize) {
+        chunks.push(remainingText);
+        break;
+      }
+
+      // Find a good breaking point - preferably at double newlines
+      let splitIndex = remainingText.lastIndexOf("\n\n", maxChunkSize);
+
+      // If no double newline found, try a single newline
+      if (splitIndex === -1 || splitIndex < maxChunkSize / 2) {
+        splitIndex = remainingText.lastIndexOf("\n", maxChunkSize);
+      }
+
+      // If no newline found, try a space
+      if (splitIndex === -1 || splitIndex < maxChunkSize / 2) {
+        splitIndex = remainingText.lastIndexOf(" ", maxChunkSize);
+      }
+
+      // If all else fails, hard split at maxChunkSize
+      if (splitIndex === -1 || splitIndex < maxChunkSize / 2) {
+        splitIndex = maxChunkSize;
+      }
+
+      chunks.push(remainingText.substring(0, splitIndex).trim());
+      remainingText = remainingText.substring(splitIndex).trim();
+    }
+
+    return chunks;
   }
 
   /**

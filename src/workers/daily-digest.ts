@@ -248,12 +248,15 @@ export async function dailyDigestHandler(
         };
 
         // Create a dummy summary object for the notifier
+        // Add a header message specifically for Discord formatting
+        const discordPrefix = "**HACKERNEWS DAILY DIGEST**\n\n";
+
         const dummySummary: Summary = {
           storyId: 0,
-          summary: formattedDigest,
+          summary: discordPrefix + formattedDigest,
           model: "digest",
-          inputTokens: 0,
-          outputTokens: 0,
+          inputTokens: digestResult.tokens.input,
+          outputTokens: digestResult.tokens.output,
           generatedAt: new Date().toISOString(),
         };
 

@@ -32,29 +32,36 @@ Create a compelling, well-organized daily tech newspaper that:
    - A concise 1-2 sentence summary
    - A link to both the original article and HackerNews discussion
 
-Format the digest in Markdown with the following structure:
+Format the digest in Discord-compatible Markdown with the following structure:
 
-# HackerNews Daily Digest - [Date]
+**HackerNews Daily Digest - [Date]**
 
 [Editor's introduction - 2-3 sentences about the tech landscape today]
 
-## Featured Headlines
+**Featured Headlines**
 [Most important 2-3 stories with slightly longer descriptions]
 
-## [Section Name 1]
+**[Section Name 1]**
 [Brief section introduction - 1-2 sentences about this category]
 
-### [Story Title 1]
+__[Story Title 1]__
 [Brief summary]
 [Original Article](URL) | [Discuss on HackerNews](HN_URL)
 
-### [Story Title 2]
+__[Story Title 2]__
 ...
 
-## [Section Name 2]
+**[Section Name 2]**
 ...
 
 Make this feel like a professionally curated tech newspaper, not just a list of links. Identify connections between stories where relevant.
+
+IMPORTANT FORMAT GUIDELINES:
+1. Keep the total output under 7000 characters to avoid truncation
+2. For Discord compatibility, use ** and __ for formatting headers, not # symbols
+3. Keep section introductions very concise (1-2 sentences maximum)
+4. Limit the number of featured headlines to 3 maximum
+5. Ensure each story summary is no more than 3 lines
 `.trim(),
   /**
    * Template for generating a summary
