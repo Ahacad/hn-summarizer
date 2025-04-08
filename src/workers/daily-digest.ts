@@ -132,24 +132,166 @@ async function createTelegraphAccount(
 }
 
 /**
- * Format content for Telegraph
- * This creates a simple node structure for Telegraph API
+ * Convert markdown to Telegraph node structure
  *
- * @param content The content to format
- * @returns Content formatted for Telegraph API
+ * @param markdown The markdown content to convert
+ * @returns Content formatted as Telegraph nodes
  */
-function formatContentForTelegraph(content: string): any[] {
-  // For simplicity, we'll just wrap the content in a paragraph
-  // In a more advanced implementation, you'd parse markdown/HTML
-  // and convert to Telegraph's node structure
+function formatContentForTelegraph(markdown: string): any[] {
+  // Split content by double newlines to separate paragraphs
+  const paragraphs = markdown.split(/\n\n+/);
 
-  // Telegraph expects an array of node objects
-  return [
-    {
-      tag: "p",
-      children: [content],
-    },
-  ];
+  // Process each paragraph into a Telegraph node
+  return paragraphs
+    .map((paragraph) => {
+      // Skip empty paragraphs
+      if (!paragraph.trim()) {
+        return null;
+      }
+
+      // Check if it's a heading
+      const headingMatch = paragraph.match(/^(#{1,6})\s+(.+)$/);
+      if (headingMatch) {
+        const level = headingMatch[1].length; // Number of # symbols
+        const text = headingMatch[2].trim();
+
+        // Telegraph supports h3 and h4 tags
+        if (level <= 2) {
+          return { tag: "h3", children: [text] };
+        } else {
+          return { tag: "h4", children: [text] };
+        }
+      }
+
+      // Check if it's a list
+      if (
+        paragraph.trim().startsWith("- ") ||
+        paragraph.trim().startsWith("* ")
+      ) {
+        // Split into list items
+        const items = paragraph
+          .split(/\n- |\n\* /)
+          .map((item) => item.replace(/^- |^\* /, "").trim())
+          .filter(Boolean);
+
+        // Create list items
+        const listItems = items.map((item) => {
+          return {
+            tag: "li",
+            children: [item],
+          };
+        });
+
+        return {
+          tag: "ul",
+          children: listItems,
+        };
+      }
+
+      // Process links [text](url)
+      let processedPara = paragraph;
+      let linkMatches = [];
+      const linkRegex = /\[([^\]]+)\]\(([^)]+)\)/g;
+      let match;
+
+      // Find all links
+      while ((match = linkRegex.exec(paragraph)) !== null) {
+        linkMatches.push({
+          fullMatch: match[0],
+          text: match[1],
+          url: match[2],
+          index: match.index,
+        });
+      }
+
+      // If there are links, we need to split the paragraph
+      if (linkMatches.length > 0) {
+        const fragments = [];
+        let lastIndex = 0;
+
+        for (const link of linkMatches) {
+          // Add text before the link
+          if (link.index > lastIndex) {
+            fragments.push(paragraph.substring(lastIndex, link.index));
+          }
+
+          // Add the link
+          fragments.push({
+            tag: "a",
+            attrs: { href: link.url },
+            children: [link.text],
+          });
+
+          lastIndex = link.index + link.fullMatch.length;
+        }
+
+        // Add remaining text
+        if (lastIndex < paragraph.length) {
+          fragments.push(paragraph.substring(lastIndex));
+        }
+
+        return { tag: "p", children: fragments };
+      }
+
+      // Check for bold and italic
+      processedPara = processBoldAndItalic(paragraph);
+
+      // Regular paragraph
+      if (typeof processedPara === "string") {
+        return { tag: "p", children: [processedPara] };
+      } else {
+        return { tag: "p", children: processedPara };
+      }
+    })
+    .filter(Boolean); // Remove null nodes
+}
+
+/**
+ * Process bold and italic formatting
+ *
+ * @param text Text to process
+ * @returns Processed text or array of nodes
+ */
+function processBoldAndItalic(text: string): string | any[] {
+  // Check for bold (**text**)
+  const boldRegex = /\*\*([^*]+)\*\*/g;
+  const italicRegex = /\*([^*]+)\*/g;
+
+  // If no formatting, return as is
+  if (!boldRegex.test(text) && !italicRegex.test(text)) {
+    return text;
+  }
+
+  // Handle bold text
+  const fragments = [];
+  let lastIndex = 0;
+  let match;
+
+  // Reset regex
+  boldRegex.lastIndex = 0;
+
+  // Process bold
+  while ((match = boldRegex.exec(text)) !== null) {
+    // Add text before the bold part
+    if (match.index > lastIndex) {
+      fragments.push(text.substring(lastIndex, match.index));
+    }
+
+    // Add bold part
+    fragments.push({
+      tag: "b",
+      children: [match[1]],
+    });
+
+    lastIndex = match.index + match[0].length;
+  }
+
+  // Add remaining text
+  if (lastIndex < text.length) {
+    fragments.push(text.substring(lastIndex));
+  }
+
+  return fragments;
 }
 
 /**
