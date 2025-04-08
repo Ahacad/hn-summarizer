@@ -75,6 +75,24 @@ wrangler secret put GOOGLE_AI_API_KEY
 wrangler secret put FIRECRAWL_API_URL
 wrangler secret put TELEGRAM_BOT_TOKEN  # Optional
 wrangler secret put DISCORD_WEBHOOK_URL  # Optional
+wrangler secret put TELEGRAPH_ACCESS_TOKEN  # Optional, for publishing digests to Telegraph
+```
+
+8. Set up a Telegraph account (optional):
+
+If you want to publish daily digests to Telegraph, you'll need to create an account:
+
+```bash
+# Create a Telegraph account
+curl -X POST https://api.telegra.ph/createAccount \
+  -H "Content-Type: application/json" \
+  -d '{
+    "short_name": "HackerNewsDigest",
+    "author_name": "YourName"
+  }'
+
+# Save the access_token from the response and add it as a secret
+wrangler secret put TELEGRAPH_ACCESS_TOKEN
 ```
 
 ## Development

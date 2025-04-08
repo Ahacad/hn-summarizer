@@ -73,6 +73,7 @@ bucket_name = "hn-summarizer-content"
 # - TELEGRAM_CHAT_ID (optional, required if using Telegram)
 # - DISCORD_WEBHOOK_URL (optional)
 # - FIRECRAWL_API_URL
+# - TELEGRAPH_ACCESS_TOKEN (optional, for publishing digests to Telegraph)
 
 # Cron triggers
 # These values should match those in src/config/constants.ts
