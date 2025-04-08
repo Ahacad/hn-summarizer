@@ -546,6 +546,14 @@ function htmlToTelegraphNodes(html: string): any[] {
       }
     }
 
+    // Remove any score information from headers (h3, h4)
+    if (finalTag === "h3" || finalTag === "h4") {
+      const text = $element.text();
+      if (text.includes("(Score:")) {
+        $element.text(text.replace(/\s*\(Score:\s*\d+\)\s*$/g, ""));
+      }
+    }
+
     // Create the node object
     const node: any = {
       tag: finalTag,
@@ -602,6 +610,24 @@ function htmlToTelegraphNodes(html: string): any[] {
 
     if (children.length > 0) {
       node.children = children;
+    }
+
+    // Special handling for links - add a newline before links to Original Article/HackerNews
+    if (finalTag === "p") {
+      // Check if this paragraph contains links to original article and HN discussion
+      const html = $element.html() || "";
+      const text = $element.text() || "";
+      if (
+        html &&
+        (html.includes("Original Article") ||
+          html.includes("Discuss on HackerNews"))
+      ) {
+        // Add a newline before the links by adding a br tag element before the links
+        return {
+          tag: "p",
+          children: ["\n"].concat(children),
+        };
+      }
     }
 
     return node;
