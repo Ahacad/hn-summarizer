@@ -9,6 +9,19 @@
 
 import { StoryRepository } from "../storage/d1/story-repository";
 import { ContentRepository } from "../storage/r2/content-repository";
+
+/**
+ * Helper function to check if this is a direct access via curl
+ *
+ * @param request The incoming request
+ * @returns Whether the request appears to be a direct curl request
+ */
+function isDirectCurlAccess(request: Request): boolean {
+  return (
+    request.headers.get("user-agent")?.toLowerCase().includes("curl") ||
+    request.headers.get("X-Direct-Access") === "true"
+  );
+}
 import { ProcessingStatus } from "../types/story";
 import { Summary, SummaryFormat } from "../types/summary";
 import { TelegramNotifier } from "../services/notifications/telegram";
@@ -115,20 +128,28 @@ export async function dailyDigestHandler(
   };
 
   try {
-    // Check if the worker should run based on its interval
-    const shouldRun = await storyRepo.shouldRunWorker(
-      "dailyDigest",
-      PROCESSING.DIGEST_INTERVAL_MINUTES,
-    );
+    // Check if this is a direct curl request using the helper
+    const isDirectAccess = isDirectCurlAccess(request);
 
-    if (!shouldRun) {
-      return new Response(
-        JSON.stringify({
-          status: "skipped",
-          message: "Not enough time has passed since the last run",
-        }),
-        { status: 200 },
+    // Only check the last run time if this is NOT a direct access
+    if (!isDirectAccess) {
+      // Check if the worker should run based on its interval
+      const shouldRun = await storyRepo.shouldRunWorker(
+        "dailyDigest",
+        PROCESSING.DIGEST_INTERVAL_MINUTES,
       );
+
+      if (!shouldRun) {
+        return new Response(
+          JSON.stringify({
+            status: "skipped",
+            message: "Not enough time has passed since the last run",
+          }),
+          { status: 200 },
+        );
+      }
+    } else {
+      logger.info("Direct access detected, skipping last run time check");
     }
 
     // Get stories processed in the last 24 hours
@@ -144,6 +165,7 @@ export async function dailyDigestHandler(
         JSON.stringify({
           status: "skipped",
           message: `Not enough stories (${stories.length}/${minStories})`,
+          directAccess: isDirectCurlAccess(request),
         }),
         { status: 200 },
       );
@@ -293,6 +315,7 @@ export async function dailyDigestHandler(
         status: "success",
         stories: validEntries.length,
         results,
+        directAccess: isDirectCurlAccess(request),
       }),
       { status: 200 },
     );
@@ -304,6 +327,7 @@ export async function dailyDigestHandler(
       JSON.stringify({
         status: "error",
         message: errorMessage,
+        directAccess: isDirectCurlAccess(request),
       }),
       { status: 500 },
     );
