@@ -9,8 +9,7 @@
 
 import { StoryRepository } from "../storage/d1/story-repository";
 import { ContentRepository } from "../storage/r2/content-repository";
-// Import Telegraph API client
-import Telegraph from "telegra.ph";
+// We'll use direct API calls instead of the telegra.ph package
 
 /**
  * Helper function to check if this is a direct access via curl
@@ -91,17 +90,60 @@ interface DailyDigest {
 }
 
 /**
- * Convert HTML/Markdown content to Telegraph node format
- *
- * @param content The content to convert
- * @returns Array of Telegraph node objects
+ * The base URL for Telegraph API
  */
-function convertToTelegraphFormat(content: string): any[] {
-  // This is a basic implementation
-  // In a more robust solution, you'd use a proper markdown/HTML parser
-  // and convert each element to the appropriate Telegraph node structure
+const TELEGRAPH_API_BASE = "https://api.telegra.ph";
 
-  // For now, we'll simply wrap the content in a paragraph node
+/**
+ * Create a Telegraph account
+ *
+ * @param shortName Short name of the account
+ * @param authorName Name of the author
+ * @returns Access token for the created account
+ */
+async function createTelegraphAccount(
+  shortName: string = "HackerNewsDigest",
+  authorName: string = "HackerNews Digest",
+): Promise<string> {
+  try {
+    const response = await fetch(`${TELEGRAPH_API_BASE}/createAccount`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        short_name: shortName,
+        author_name: authorName,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      throw new Error(`Failed to create Telegraph account: ${data.error}`);
+    }
+
+    logger.info("Created new Telegraph account");
+    return data.result.access_token;
+  } catch (error) {
+    logger.error("Error creating Telegraph account", { error });
+    throw error;
+  }
+}
+
+/**
+ * Format content for Telegraph
+ * This creates a simple node structure for Telegraph API
+ *
+ * @param content The content to format
+ * @returns Content formatted for Telegraph API
+ */
+function formatContentForTelegraph(content: string): any[] {
+  // For simplicity, we'll just wrap the content in a paragraph
+  // In a more advanced implementation, you'd parse markdown/HTML
+  // and convert to Telegraph's node structure
+
+  // Telegraph expects an array of node objects
   return [
     {
       tag: "p",
@@ -111,10 +153,56 @@ function convertToTelegraphFormat(content: string): any[] {
 }
 
 /**
+ * Create a page on Telegraph
+ *
+ * @param accessToken Telegraph access token
+ * @param title Title of the page
+ * @param content Content in Telegraph format
+ * @param authorName Name of the author
+ * @returns URL of the created page
+ */
+async function createTelegraphPage(
+  accessToken: string,
+  title: string,
+  content: string,
+  authorName: string = "HackerNews Digest",
+): Promise<string> {
+  try {
+    const contentNodes = formatContentForTelegraph(content);
+
+    const response = await fetch(`${TELEGRAPH_API_BASE}/createPage`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        access_token: accessToken,
+        title: title,
+        content: contentNodes,
+        author_name: authorName,
+        return_content: false,
+      }),
+    });
+
+    const data = await response.json();
+
+    if (!data.ok) {
+      throw new Error(`Failed to create Telegraph page: ${data.error}`);
+    }
+
+    logger.info("Created Telegraph page", { url: data.result.url });
+    return data.result.url;
+  } catch (error) {
+    logger.error("Error creating Telegraph page", { error });
+    throw error;
+  }
+}
+
+/**
  * Publish content to Telegraph and get the URL
  *
  * @param title Title of the Telegraph page
- * @param content Content in Telegraph node format
+ * @param content Content to publish
  * @param authorName Name of the author
  * @returns URL of the created Telegraph page
  */
@@ -124,34 +212,60 @@ async function publishToTelegraph(
   authorName: string = "HackerNews Digest",
 ): Promise<string> {
   try {
-    const client = new Telegraph();
+    // Use the stored access token from environment variables
+    let accessToken = ENV.get("TELEGRAPH_ACCESS_TOKEN");
 
-    // Create an account or use existing token
-    let token = ENV.get("TELEGRAPH_ACCESS_TOKEN");
-
-    if (!token) {
-      logger.info("Creating new Telegraph account");
-      const account = await client.createAccount({
-        short_name: "HackerNewsDigest",
-        author_name: authorName,
-      });
-      token = account.access_token;
-      logger.info(
-        "New Telegraph token created. Consider saving this to your environment variables.",
-        { token },
+    // If no token is found, create a new account (fallback option)
+    if (!accessToken) {
+      logger.warn(
+        "TELEGRAPH_ACCESS_TOKEN not found in environment, creating a temporary account",
+      );
+      accessToken = await createTelegraphAccount(
+        "HackerNewsDigest",
+        authorName,
       );
     } else {
-      client.token = token;
+      logger.info("Using existing Telegraph access token");
     }
 
-    // Create a Telegraph page
-    const contentNodes = convertToTelegraphFormat(content);
-    const page = await client.createPage(title, contentNodes, authorName);
+    // Create the page
+    const url = await createTelegraphPage(
+      accessToken,
+      title,
+      content,
+      authorName,
+    );
 
-    logger.info("Published digest to Telegraph", { url: page.url });
-    return page.url;
+    return url;
   } catch (error) {
-    logger.error("Error publishing to Telegraph", error);
+    // If the token is invalid or expired, try to create a new account
+    if (error.message?.includes("ACCESS_TOKEN_INVALID")) {
+      logger.warn("Telegraph access token invalid, creating a new account");
+      try {
+        const newAccessToken = await createTelegraphAccount(
+          "HackerNewsDigest",
+          authorName,
+        );
+        const url = await createTelegraphPage(
+          newAccessToken,
+          title,
+          content,
+          authorName,
+        );
+        logger.info(
+          "Consider updating your TELEGRAPH_ACCESS_TOKEN environment variable",
+        );
+        return url;
+      } catch (retryError) {
+        logger.error(
+          "Error creating new Telegraph account after token failure",
+          { retryError },
+        );
+        throw retryError;
+      }
+    }
+
+    logger.error("Error publishing to Telegraph", { error });
     throw error;
   }
 }
