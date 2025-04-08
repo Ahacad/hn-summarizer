@@ -10,6 +10,7 @@
 import { StoryRepository } from "../storage/d1/story-repository";
 import { ContentRepository } from "../storage/r2/content-repository";
 // We'll use direct API calls instead of the telegra.ph package
+import * as cheerio from "cheerio";
 
 /**
  * Helper function to check if this is a direct access via curl
@@ -472,11 +473,147 @@ function processBoldAndItalic(text: string): string | any[] {
 }
 
 /**
+ * Convert HTML to Telegraph Node format
+ *
+ * @param html HTML content to convert
+ * @returns Array of Telegraph Node objects
+ */
+function htmlToTelegraphNodes(html: string): any[] {
+  // Use cheerio to parse HTML (like jQuery for Node.js)
+  const $ = cheerio.load(html);
+  const result: any[] = [];
+
+  // Process each top-level element
+  $("body")
+    .children()
+    .each((_, element) => {
+      const node = elementToNode($(element));
+      if (node) {
+        result.push(node);
+      }
+    });
+
+  return result;
+
+  // Helper function to convert a cheerio element to a Telegraph node
+  function elementToNode($element: cheerio.Cheerio): any | null {
+    // Get the tag name
+    const tagName = $element.get(0).tagName.toLowerCase();
+
+    // Map of allowed tags in Telegraph
+    const allowedTags = [
+      "a",
+      "aside",
+      "b",
+      "blockquote",
+      "br",
+      "code",
+      "em",
+      "figcaption",
+      "figure",
+      "h3",
+      "h4",
+      "hr",
+      "i",
+      "iframe",
+      "img",
+      "li",
+      "ol",
+      "p",
+      "pre",
+      "s",
+      "strong",
+      "u",
+      "ul",
+      "video",
+    ];
+
+    // Convert tag if needed
+    let finalTag = tagName;
+    if (!allowedTags.includes(tagName)) {
+      // Map unsupported tags to appropriate alternatives
+      if (tagName === "h1" || tagName === "h2") {
+        finalTag = "h3";
+      } else if (tagName === "h5" || tagName === "h6") {
+        finalTag = "h4";
+      } else if (tagName === "div") {
+        finalTag = "p";
+      } else if (tagName === "span") {
+        // For spans, we'll just return the text content
+        return $element.text();
+      } else {
+        finalTag = "p";
+      }
+    }
+
+    // Create the node object
+    const node: any = {
+      tag: finalTag,
+    };
+
+    // Add allowed attributes (only href and src are allowed in Telegraph)
+    const attrs: any = {};
+    let hasAttrs = false;
+
+    if ($element.attr("href")) {
+      attrs.href = $element.attr("href");
+      hasAttrs = true;
+    }
+
+    if ($element.attr("src")) {
+      attrs.src = $element.attr("src");
+      hasAttrs = true;
+    }
+
+    if (hasAttrs) {
+      node.attrs = attrs;
+    }
+
+    // Process children
+    const children: any[] = [];
+
+    // Special case for elements with only text
+    if ($element.children().length === 0) {
+      const text = $element.text().trim();
+      if (text) {
+        children.push(text);
+      } else if (tagName === "br" || tagName === "hr") {
+        // Empty elements like br/hr are valid
+      } else {
+        // Empty elements with no purpose can be skipped
+        return null;
+      }
+    } else {
+      // Process mixed content (text nodes and elements)
+      $element.contents().each((_, child) => {
+        if (child.type === "text") {
+          const text = $(child).text().trim();
+          if (text) {
+            children.push(text);
+          }
+        } else if (child.type === "tag") {
+          const childNode = elementToNode($(child));
+          if (childNode) {
+            children.push(childNode);
+          }
+        }
+      });
+    }
+
+    if (children.length > 0) {
+      node.children = children;
+    }
+
+    return node;
+  }
+}
+
+/**
  * Create a page on Telegraph
  *
  * @param accessToken Telegraph access token
  * @param title Title of the page
- * @param content Content in Telegraph format
+ * @param content Content in HTML format
  * @param authorName Name of the author
  * @returns URL of the created page
  */
@@ -491,7 +628,17 @@ async function createTelegraphPage(
     // This acts as a failsafe in case the AI-generated content still has code blocks
     const cleanedContent = content.replace(/^\s*```[\w]*[\s\S]*?```\s*/m, "");
 
-    const contentNodes = formatContentForTelegraph(cleanedContent);
+    // First try to parse as HTML, if that fails, fall back to the markdown parser
+    let contentNodes;
+    try {
+      contentNodes = htmlToTelegraphNodes(cleanedContent);
+      logger.info("Successfully parsed content as HTML");
+    } catch (error) {
+      logger.warn("Failed to parse as HTML, falling back to markdown parser", {
+        error,
+      });
+      contentNodes = formatContentForTelegraph(cleanedContent);
+    }
 
     const response = await fetch(`${TELEGRAPH_API_BASE}/createPage`, {
       method: "POST",
