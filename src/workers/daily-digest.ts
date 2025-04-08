@@ -164,6 +164,7 @@ function formatContentForTelegraph(markdown: string): any[] {
       }
 
       // Check if it's a title with double underscores, possibly with a score
+      // First, check the exact format from the prompt template: __[Story Title]__
       const titleMatch = paragraph.match(/^__([^_]+)__$/);
       if (titleMatch) {
         // Extract the title text
@@ -193,6 +194,29 @@ function formatContentForTelegraph(markdown: string): any[] {
           // Regular title without score
           return { tag: "h4", children: [titleText] };
         }
+      }
+
+      // Check for alternate possible title formats that might be generated
+      // These could be titles without the double underscore format
+      const altTitleScoreMatch = paragraph.match(
+        /^([^(]+)\s*\(Score:\s*(\d+)\)$/,
+      );
+      if (altTitleScoreMatch) {
+        const actualTitle = altTitleScoreMatch[1].trim();
+        const score = altTitleScoreMatch[2];
+
+        return {
+          tag: "h4",
+          children: [
+            actualTitle,
+            " ",
+            {
+              tag: "span",
+              attrs: { style: "font-size: 0.8em; color: #666;" },
+              children: [`(Score: ${score})`],
+            },
+          ],
+        };
       }
 
       // Check if it's a list
@@ -309,11 +333,36 @@ function processBoldAndItalic(text: string): string | any[] {
       fragments.push(text.substring(lastIndex, match.index));
     }
 
-    // Add bold part (either from ** or __)
-    fragments.push({
-      tag: "b",
-      children: [match[1] || match[2]], // match[1] for ** format, match[2] for __ format
-    });
+    // Get the content of the bold section
+    const boldContent = match[1] || match[2]; // match[1] for ** format, match[2] for __ format
+
+    // Check if the bold content contains a score
+    const scoreMatch = boldContent.match(/(.+?)\s*\(Score:\s*(\d+)\)$/);
+
+    if (scoreMatch) {
+      // If there's a score, format it with the score slightly smaller
+      const actualTitle = scoreMatch[1].trim();
+      const score = scoreMatch[2];
+
+      fragments.push({
+        tag: "b",
+        children: [
+          actualTitle,
+          " ",
+          {
+            tag: "span",
+            attrs: { style: "font-size: 0.8em; color: #666;" },
+            children: [`(Score: ${score})`],
+          },
+        ],
+      });
+    } else {
+      // Regular bold text without score
+      fragments.push({
+        tag: "b",
+        children: [boldContent],
+      });
+    }
 
     lastIndex = match.index + match[0].length;
   }
