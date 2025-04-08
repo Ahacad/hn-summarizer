@@ -149,7 +149,7 @@ function formatContentForTelegraph(markdown: string): any[] {
         return null;
       }
 
-      // Check if it's a heading
+      // Check if it's a heading with # symbols
       const headingMatch = paragraph.match(/^(#{1,6})\s+(.+)$/);
       if (headingMatch) {
         const level = headingMatch[1].length; // Number of # symbols
@@ -161,6 +161,15 @@ function formatContentForTelegraph(markdown: string): any[] {
         } else {
           return { tag: "h4", children: [text] };
         }
+      }
+
+      // Check if it's a title with double underscores
+      const titleMatch = paragraph.match(/^__([^_]+)__$/);
+      if (titleMatch) {
+        // Extract the title text
+        const titleText = titleMatch[1].trim();
+        // Return it as a bold heading - h4 is a good size for these titles
+        return { tag: "h4", children: [titleText] };
       }
 
       // Check if it's a list
@@ -253,8 +262,8 @@ function formatContentForTelegraph(markdown: string): any[] {
  * @returns Processed text or array of nodes
  */
 function processBoldAndItalic(text: string): string | any[] {
-  // Check for bold (**text**)
-  const boldRegex = /\*\*([^*]+)\*\*/g;
+  // Check for bold (**text** or __text__)
+  const boldRegex = /\*\*([^*]+)\*\*|__([^_]+)__/g;
   const italicRegex = /\*([^*]+)\*/g;
 
   // If no formatting, return as is
@@ -270,17 +279,17 @@ function processBoldAndItalic(text: string): string | any[] {
   // Reset regex
   boldRegex.lastIndex = 0;
 
-  // Process bold
+  // Process bold (both ** and __)
   while ((match = boldRegex.exec(text)) !== null) {
     // Add text before the bold part
     if (match.index > lastIndex) {
       fragments.push(text.substring(lastIndex, match.index));
     }
 
-    // Add bold part
+    // Add bold part (either from ** or __)
     fragments.push({
       tag: "b",
-      children: [match[1]],
+      children: [match[1] || match[2]], // match[1] for ** format, match[2] for __ format
     });
 
     lastIndex = match.index + match[0].length;
