@@ -43,7 +43,6 @@
     "@google/generative-ai": "^0.24.0",
     "discord.js": "^14.18.0",
     "node-fetch": "^3.3.2",
-    "telegra.ph": "^1.0.1",
     "telegraf": "^4.16.3"
   }
 }
