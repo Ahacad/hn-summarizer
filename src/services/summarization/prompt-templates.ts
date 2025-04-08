@@ -62,6 +62,7 @@ IMPORTANT FORMAT GUIDELINES:
 3. Keep section introductions very concise (1-2 sentences maximum).
 4. Limit the number of featured headlines to 3 maximum.
 5. Ensure each story summary is no more than 3 lines.
+6. DO NOT use Markdown code blocks with backticks. If you need to show code or HTML examples, wrap them in <pre> tags directly instead of using backticks.
 `.trim(),
   /**
    * Template for generating a summary

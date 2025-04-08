@@ -226,6 +226,21 @@ function formatContentForTelegraph(markdown: string): any[] {
         };
       }
 
+      // Check if it's a code block with triple backticks
+      const codeBlockMatch = paragraph.match(
+        /^```([\w]*)\s*\n([\s\S]*)\n```\s*$/,
+      );
+      if (codeBlockMatch) {
+        const language = codeBlockMatch[1]; // Optional language specifier
+        const code = codeBlockMatch[2].trim();
+
+        // For Telegraph, we'll use pre tags for code blocks
+        return {
+          tag: "pre",
+          children: [code],
+        };
+      }
+
       // Check if it's a list
       if (
         paragraph.trim().startsWith("- ") ||
