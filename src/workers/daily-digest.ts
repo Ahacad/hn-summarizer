@@ -622,10 +622,15 @@ function htmlToTelegraphNodes(html: string): any[] {
         (html.includes("Original Article") ||
           html.includes("Discuss on HackerNews"))
       ) {
-        // Add a newline before the links by adding a br tag element before the links
+        // Add a <br> tag before the links for a simple line break
         return {
           tag: "p",
-          children: ["\n"].concat(children),
+          children: [
+            {
+              tag: "br",
+              children: [],
+            },
+          ].concat(children),
         };
       }
     }
