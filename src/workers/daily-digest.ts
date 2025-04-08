@@ -196,6 +196,13 @@ function formatContentForTelegraph(markdown: string): any[] {
         }
       }
 
+      // Check for bold text using double underscores that might be inline
+      const inlineBoldMatch = paragraph.match(/__([^_]+)__/);
+      if (inlineBoldMatch) {
+        // Process the paragraph with our updated bold/italic handler
+        return { tag: "p", children: processBoldAndItalic(paragraph) };
+      }
+
       // Check for alternate possible title formats that might be generated
       // These could be titles without the double underscore format
       const altTitleScoreMatch = paragraph.match(
@@ -244,6 +251,12 @@ function formatContentForTelegraph(markdown: string): any[] {
         };
       }
 
+      // First, check if paragraph starts with "**" and ends with "**" - likely a section header
+      if (paragraph.startsWith("**") && paragraph.endsWith("**")) {
+        const headerText = paragraph.substring(2, paragraph.length - 2).trim();
+        return { tag: "h3", children: [headerText] };
+      }
+
       // Process links [text](url)
       let processedPara = paragraph;
       let linkMatches = [];
@@ -268,7 +281,18 @@ function formatContentForTelegraph(markdown: string): any[] {
         for (const link of linkMatches) {
           // Add text before the link
           if (link.index > lastIndex) {
-            fragments.push(paragraph.substring(lastIndex, link.index));
+            const beforeText = paragraph.substring(lastIndex, link.index);
+            // Check if this fragment has bold formatting
+            if (beforeText.includes("__")) {
+              const processed = processBoldAndItalic(beforeText);
+              if (Array.isArray(processed)) {
+                fragments.push(...processed);
+              } else {
+                fragments.push(processed);
+              }
+            } else {
+              fragments.push(beforeText);
+            }
           }
 
           // Add the link
@@ -283,7 +307,18 @@ function formatContentForTelegraph(markdown: string): any[] {
 
         // Add remaining text
         if (lastIndex < paragraph.length) {
-          fragments.push(paragraph.substring(lastIndex));
+          const afterText = paragraph.substring(lastIndex);
+          // Check if this fragment has bold formatting
+          if (afterText.includes("__")) {
+            const processed = processBoldAndItalic(afterText);
+            if (Array.isArray(processed)) {
+              fragments.push(...processed);
+            } else {
+              fragments.push(processed);
+            }
+          } else {
+            fragments.push(afterText);
+          }
         }
 
         return { tag: "p", children: fragments };
@@ -344,24 +379,49 @@ function processBoldAndItalic(text: string): string | any[] {
       const actualTitle = scoreMatch[1].trim();
       const score = scoreMatch[2];
 
-      fragments.push({
-        tag: "b",
-        children: [
-          actualTitle,
-          " ",
-          {
-            tag: "span",
-            attrs: { style: "font-size: 0.8em; color: #666;" },
-            children: [`(Score: ${score})`],
-          },
-        ],
-      });
+      // For story titles, use h4 tag instead of b tag when they're in double underscore format
+      if (match[0].startsWith("__")) {
+        fragments.push({
+          tag: "h4",
+          children: [
+            actualTitle,
+            " ",
+            {
+              tag: "span",
+              attrs: { style: "font-size: 0.8em; color: #666;" },
+              children: [`(Score: ${score})`],
+            },
+          ],
+        });
+      } else {
+        // Regular bold text with score
+        fragments.push({
+          tag: "b",
+          children: [
+            actualTitle,
+            " ",
+            {
+              tag: "span",
+              attrs: { style: "font-size: 0.8em; color: #666;" },
+              children: [`(Score: ${score})`],
+            },
+          ],
+        });
+      }
     } else {
-      // Regular bold text without score
-      fragments.push({
-        tag: "b",
-        children: [boldContent],
-      });
+      // For story titles, use h4 tag instead of b tag when they're in double underscore format
+      if (match[0].startsWith("__")) {
+        fragments.push({
+          tag: "h4",
+          children: [boldContent],
+        });
+      } else {
+        // Regular bold text without score
+        fragments.push({
+          tag: "b",
+          children: [boldContent],
+        });
+      }
     }
 
     lastIndex = match.index + match[0].length;
