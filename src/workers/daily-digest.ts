@@ -163,13 +163,36 @@ function formatContentForTelegraph(markdown: string): any[] {
         }
       }
 
-      // Check if it's a title with double underscores
+      // Check if it's a title with double underscores, possibly with a score
       const titleMatch = paragraph.match(/^__([^_]+)__$/);
       if (titleMatch) {
         // Extract the title text
         const titleText = titleMatch[1].trim();
-        // Return it as a bold heading - h4 is a good size for these titles
-        return { tag: "h4", children: [titleText] };
+
+        // Check if title contains a score in parentheses
+        const scoreMatch = titleText.match(/(.+?)\s*\(Score:\s*(\d+)\)$/);
+
+        if (scoreMatch) {
+          // If there's a score, format the title with the score slightly smaller
+          const actualTitle = scoreMatch[1].trim();
+          const score = scoreMatch[2];
+
+          return {
+            tag: "h4",
+            children: [
+              actualTitle,
+              " ",
+              {
+                tag: "span",
+                attrs: { style: "font-size: 0.8em; color: #666;" },
+                children: [`(Score: ${score})`],
+              },
+            ],
+          };
+        } else {
+          // Regular title without score
+          return { tag: "h4", children: [titleText] };
+        }
       }
 
       // Check if it's a list
@@ -643,7 +666,7 @@ export async function dailyDigestHandler(
         // Create a dummy summary object with the Telegraph link
         const discordSummary: Summary = {
           storyId: 0,
-          summary: `📰 **HackerNews Daily Digest is ready!**\n\nRead today's tech news digest here: ${telegraphUrl}\n\n_Powered by AI - Includes ${validEntries.length} top stories_`,
+          summary: `📰 **HackerNews Daily Digest is ready!**\n\nRead today's tech news digest here: ${telegraphUrl}\n\n_Powered by AI - Includes ${validEntries.length} top stories with HackerNews scores_`,
           model: digestResult.model,
           inputTokens: digestResult.tokens.input,
           outputTokens: digestResult.tokens.output,

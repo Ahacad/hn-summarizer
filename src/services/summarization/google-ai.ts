@@ -288,7 +288,7 @@ export class GoogleAISummarizer {
       const summary = summaries.find((s) => s.storyId === story.id);
       return {
         id: story.id,
-        title: story.title,
+        title: `${story.title} (Score: ${story.score})`, // Include the score in the title
         url: story.url || `https://news.ycombinator.com/item?id=${story.id}`,
         hnUrl: `https://news.ycombinator.com/item?id=${story.id}`,
         score: story.score,
