@@ -313,16 +313,36 @@ export class GoogleAISummarizer {
 
     // Get the generative model
     const model = this.genAI.getGenerativeModel({
-      model: this.modelName,
+      model: this.model, // Fix: use this.model instead of this.modelName
       generationConfig: {
         temperature: API.GOOGLE_AI.DEFAULT_TEMPERATURE, // Lower temperature for more focused output
+        maxOutputTokens: this.maxOutputTokens,
+        topP: 0.95,
+        topK: 40,
       },
-      safetySettings: this.getSafetySettings(),
+      safetySettings: [
+        {
+          category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+        {
+          category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+          threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH,
+        },
+      ],
     });
 
     // Generate the digest
     const result = await model.generateContent(prompt);
-    const response = await result.response;
+    const response = result.response;
     const text = response.text();
 
     // Track the end time
@@ -340,7 +360,7 @@ export class GoogleAISummarizer {
     // Return the generated digest
     return {
       content: text,
-      model: this.modelName,
+      model: this.model, // Fix: use this.model instead of this.modelName
       tokens: {
         input: inputTokens,
         output: outputTokens,
